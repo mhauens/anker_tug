@@ -16,9 +16,9 @@ describe("Twitch event mapping", () => {
         message_timestamp: new Date().toISOString(),
         subscription_type: "channel.subscribe",
       },
-      payload: { event: { is_gift: true } },
+      payload: { event: { is_gift: true, tier: "2000" } },
     });
-    expect(event).toEqual({ kind: "regular-sub", isGift: true });
+    expect(event).toEqual({ kind: "regular-sub", isGift: true, tier: "2000" });
   });
 
   it("preserves the full size of the largest gift burst", () => {
@@ -29,9 +29,9 @@ describe("Twitch event mapping", () => {
         message_timestamp: new Date().toISOString(),
         subscription_type: "channel.subscription.gift",
       },
-      payload: { event: { total: 1000 } },
+      payload: { event: { total: 1000, tier: "3000" } },
     });
-    expect(event).toEqual({ kind: "gift-subs", total: 1000 });
+    expect(event).toEqual({ kind: "gift-subs", total: 1000, tier: "3000" });
   });
 
   it("maps announced resubscriptions as one regular subscription", () => {
@@ -42,9 +42,9 @@ describe("Twitch event mapping", () => {
         message_timestamp: new Date().toISOString(),
         subscription_type: "channel.subscription.message",
       },
-      payload: { event: { cumulative_months: 12 } },
+      payload: { event: { cumulative_months: 12, tier: "1000" } },
     });
-    expect(event).toEqual({ kind: "regular-sub", isGift: false });
+    expect(event).toEqual({ kind: "regular-sub", isGift: false, tier: "1000" });
   });
 
   it("normalizes a Hype Train progress payload", () => {
@@ -60,6 +60,7 @@ describe("Twitch event mapping", () => {
           id: "train",
           started_at: "2026-06-05T11:55:00Z",
           level: 4,
+          total: 6200,
           progress: 250,
           goal: 500,
           expires_at: "2026-06-05T12:00:00Z",
@@ -72,6 +73,7 @@ describe("Twitch event mapping", () => {
         id: "train",
         startedAt: "2026-06-05T11:55:00Z",
         level: 4,
+        total: 6200,
       },
     });
   });

@@ -7,6 +7,7 @@ interface TwitchHypeStatus {
     current: null | {
       id: string;
       level: number;
+      total: number;
       progress: number;
       goal: number;
       expires_at: string;
@@ -33,6 +34,7 @@ export default async (req: Request) => {
             id: current.id,
             startedAt: current.started_at,
             level: current.level,
+            total: current.total,
             progress: current.progress,
             goal: current.goal,
             expiresAt: current.expires_at,

@@ -26,6 +26,9 @@ export function Hud({ state, connection }: HudProps) {
     ? (state.voteCounts.pull / totalVotes) * 100
     : 50;
   const depthTicks = depthTicksForLevel(state.hypeLevel);
+  const hypePointsLabel = state.hypeGoal
+    ? `${state.hypeProgress.toLocaleString("de-DE")} / ${state.hypeGoal.toLocaleString("de-DE")} Punkte`
+    : "Wartet auf Punkte";
   const awardLabel = state.lastAward
     ? `${state.lastAward.points} ${
         state.lastAward.points === 1 ? "Punkt" : "Punkte"
@@ -49,8 +52,11 @@ export function Hud({ state, connection }: HudProps) {
             <span>Hype Train</span>
             <strong>LEVEL {state.hypeLevel}</strong>
           </div>
-          <div className="hype-track">
-            <i style={{ width: `${hypePercent}%` }} />
+          <div className="hype-progress">
+            <div className="hype-track">
+              <i style={{ width: `${hypePercent}%` }} />
+            </div>
+            <small className="hype-points">{hypePointsLabel}</small>
           </div>
         </div>
         <div className={`connection connection--${connection}`}>

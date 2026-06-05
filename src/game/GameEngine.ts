@@ -3,7 +3,11 @@ import {
   formatMeters,
   giftSubCountForTotal,
   giftSubPullForTotal,
+  hypePointPullForLevel,
+  hypeTrainTotalPointsForProgress,
+  naturalSinkForLevel,
   roundDepthForLevel,
+  regularSubPullForLevel,
   skillStrengthForLevel,
   votePullForLevel,
 } from "./balance";
@@ -39,6 +43,7 @@ export function createInitialGameState(): GameState {
     trainStartedAt: null,
     anchorDepth: BALANCE.initialDepth,
     hypeLevel: 1,
+    hypeTotal: 0,
     hypeProgress: 0,
     hypeGoal: 0,
     expiresAt: null,
@@ -135,20 +140,50 @@ export class GameEngine {
 
     if (snapshot.level > this.state.hypeLevel) {
       const gainedLevels = snapshot.level - this.state.hypeLevel;
-      this.state.streamerWins += gainedLevels;
+      // The points that completed the level pull the anchor up. If that pull is
+      // enough to break the surface, the chat freed the anchor in time and wins
+      // the point; otherwise the streamer held the level and takes it.
+      const { points, pull } = this.hypeProgressDelta(snapshot);
+      const reachedSurface =
+        this.canApplyForces() && pull >= this.state.anchorDepth;
+
+      // Each skipped level is its own round: a big sub bomb that vaults past
+      // several levels and frees the anchor earns the chat a point per level,
+      // mirroring how the streamer scores a point per level held.
+      if (reachedSurface) this.state.chatWins += gainedLevels;
+      else this.state.streamerWins += gainedLevels;
+
       this.beginLevelRound(
         snapshot,
-        `Level ${snapshot.level - 1} gehalten: Punkt fuer den Streamer`,
+        reachedSurface
+          ? `Hype Train +${Math.round(points)} Punkte: Anker frei${gainedLevels > 1 ? ` (${gainedLevels} Level)` : ""}`
+          : `Level ${snapshot.level - 1} gehalten: Punkt fuer den Streamer`,
       );
-      this.state.lastAward = { side: "streamer", points: gainedLevels };
+      if (gainedLevels > 1) this.state.roundNumber += gainedLevels - 1;
+      this.state.lastAward = {
+        side: reachedSurface ? "chat" : "streamer",
+        points: gainedLevels,
+      };
       this.emit();
       return;
     }
 
+    const progressPull = this.applyHypeProgressPull(snapshot);
+    this.state.hypeTotal = Math.max(
+      this.state.hypeTotal,
+      snapshot.total ?? this.estimatedTotalPoints(snapshot),
+    );
     this.state.hypeProgress = Math.max(this.state.hypeProgress, snapshot.progress);
     if (snapshot.goal > 0) this.state.hypeGoal = snapshot.goal;
     if (Date.parse(snapshot.expiresAt) > Date.parse(this.state.expiresAt ?? "")) {
       this.state.expiresAt = snapshot.expiresAt;
+    }
+    if (progressPull.wins > 0) {
+      this.state.chatSkipRounds = progressPull.wins > 1 ? progressPull.wins : 0;
+      this.state.lastAward = { side: "chat", points: progressPull.wins };
+      this.state.lastImpact = `Hype Train +${Math.round(progressPull.points)} Punkte: ${formatMeters(progressPull.pull)} hoch, +${progressPull.wins} Chat-Punkt${progressPull.wins === 1 ? "" : "e"}`;
+    } else if (progressPull.pull > 0) {
+      this.state.lastImpact = `Hype Train +${Math.round(progressPull.points)} Punkte: ${formatMeters(progressPull.pull)} hoch`;
     }
     this.emit();
   }
@@ -159,23 +194,24 @@ export class GameEngine {
     this.finish("streamer", "Letzte Stufe gehalten: Punkt für den Streamer");
   }
 
-  onRegularSub(isGift: boolean): void {
+  onRegularSub(isGift: boolean, tier?: string): void {
     if (!this.canApplyForces() || isGift) return;
-    const wins = this.applyChatPull(BALANCE.regularSubPull);
+    const pull = regularSubPullForLevel(this.state.hypeLevel, tier);
+    const wins = this.applyChatPull(pull);
     this.state.chatSkipRounds = wins > 1 ? wins : 0;
     this.state.lastAward = wins > 0 ? { side: "chat", points: wins } : null;
     this.state.lastImpact =
       wins > 0
-        ? `Neuer Sub: ${formatMeters(BALANCE.regularSubPull)} hoch, +${wins} Chat-Punkt${wins === 1 ? "" : "e"}`
-        : `Neuer Sub: ${formatMeters(BALANCE.regularSubPull)} hoch`;
+        ? `Neuer Sub: ${formatMeters(pull)} hoch, +${wins} Chat-Punkt${wins === 1 ? "" : "e"}`
+        : `Neuer Sub: ${formatMeters(pull)} hoch`;
     this.emit();
   }
 
-  onGiftSubs(total: number): void {
+  onGiftSubs(total: number, tier?: string): void {
     if (!this.canApplyForces()) return;
     const giftCount = giftSubCountForTotal(total);
     if (giftCount === 0) return;
-    const pull = giftSubPullForTotal(giftCount);
+    const pull = giftSubPullForTotal(giftCount, this.state.hypeLevel, tier);
     const wins = this.applyChatPull(pull);
     this.state.chatSkipRounds = wins > 1 ? wins : 0;
     this.state.lastAward = wins > 0 ? { side: "chat", points: wins } : null;
@@ -260,7 +296,7 @@ export class GameEngine {
 
     if (this.state.phase !== "playing") return;
 
-    this.applyDepth(BALANCE.naturalSinkPerSecond * deltaSeconds);
+    this.applyDepth(naturalSinkForLevel(this.state.hypeLevel) * deltaSeconds);
     this.voteElapsed += deltaSeconds;
 
       if (this.voteElapsed >= BALANCE.voteWindowSeconds) {
@@ -363,6 +399,31 @@ export class GameEngine {
     );
   }
 
+  private hypeProgressDelta(snapshot: HypeTrainSnapshot): {
+    points: number;
+    pull: number;
+  } {
+    const incomingTotal = snapshot.total ?? this.estimatedTotalPoints(snapshot);
+    const points = Math.max(0, incomingTotal - this.state.hypeTotal);
+    return { points, pull: hypePointPullForLevel(points, this.state.hypeLevel) };
+  }
+
+  private applyHypeProgressPull(snapshot: HypeTrainSnapshot): {
+    points: number;
+    pull: number;
+    wins: number;
+  } {
+    if (!this.canApplyForces()) return { points: 0, pull: 0, wins: 0 };
+    const { points, pull } = this.hypeProgressDelta(snapshot);
+    if (pull <= 0) return { points, pull: 0, wins: 0 };
+    const wins = this.applyChatPull(pull);
+    return { points, pull, wins };
+  }
+
+  private estimatedTotalPoints(snapshot: HypeTrainSnapshot): number {
+    return hypeTrainTotalPointsForProgress(snapshot.level, snapshot.progress);
+  }
+
   private applyChatPull(pull: number): number {
     let remaining = Math.max(0, pull);
     let wins = 0;
@@ -409,6 +470,7 @@ export class GameEngine {
         (this.state.trainId === snapshot.id ? this.state.trainStartedAt : null),
       anchorDepth: roundDepthForLevel(snapshot.level),
       hypeLevel: Math.max(1, snapshot.level),
+      hypeTotal: snapshot.total ?? this.estimatedTotalPoints(snapshot),
       hypeProgress: snapshot.progress,
       hypeGoal: snapshot.goal,
       expiresAt: snapshot.expiresAt,

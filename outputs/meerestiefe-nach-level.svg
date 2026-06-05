@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="620" viewBox="0 0 1000 620" role="img" aria-labelledby="title desc">
+  <title id="title">Meerestiefe nach Hype-Train-Level</title>
+  <desc id="desc">Liniendiagramm der Rundentiefe: Level 1 = 6 Meter, Level 2 = 14 Meter, Level 3 = 28 Meter, Level 4 = 48 Meter, Level 5 = 70 Meter, Level 6 = 85 Meter.</desc>
+  <defs>
+    <linearGradient id="ocean" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#d8fbff"/>
+      <stop offset="0.25" stop-color="#6bd6e9"/>
+      <stop offset="0.62" stop-color="#136078"/>
+      <stop offset="1" stop-color="#062535"/>
+    </linearGradient>
+    <linearGradient id="depthFill" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#ffdf7e" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#ff8f4d" stop-opacity="0.12"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#03131b" flood-opacity="0.32"/>
+    </filter>
+  </defs>
+
+  <rect width="1000" height="620" fill="#071923"/>
+  <rect x="34" y="32" width="932" height="540" rx="8" fill="url(#ocean)" filter="url(#softShadow)"/>
+  <path d="M34 104 C130 82 222 125 320 102 S520 80 626 104 S840 134 966 98 L966 32 L34 32 Z" fill="#f7feff" opacity="0.22"/>
+  <path d="M34 118 C154 94 250 132 358 112 S538 82 650 112 S830 140 966 108" fill="none" stroke="#f7feff" stroke-width="5" opacity="0.62"/>
+
+  <text x="500" y="72" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="32" font-weight="800" fill="#f6fdff">Meerestiefe nach Level</text>
+  <text x="500" y="104" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="16" font-weight="700" fill="#c9f4fb">Rundentiefe / Starttiefe des Ankers</text>
+
+  <g font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">
+    <line x1="110" y1="132" x2="110" y2="492" stroke="#d7fbff" stroke-width="2" opacity="0.9"/>
+    <line x1="110" y1="492" x2="900" y2="492" stroke="#d7fbff" stroke-width="2" opacity="0.9"/>
+
+    <g fill="#e8fbff" opacity="0.86">
+      <line x1="110" y1="132" x2="900" y2="132" stroke="#e8fbff" stroke-width="1" opacity="0.24"/>
+      <text x="92" y="137" text-anchor="end">0 m</text>
+      <line x1="110" y1="212" x2="900" y2="212" stroke="#e8fbff" stroke-width="1" opacity="0.2"/>
+      <text x="92" y="217" text-anchor="end">20 m</text>
+      <line x1="110" y1="292" x2="900" y2="292" stroke="#e8fbff" stroke-width="1" opacity="0.2"/>
+      <text x="92" y="297" text-anchor="end">40 m</text>
+      <line x1="110" y1="372" x2="900" y2="372" stroke="#e8fbff" stroke-width="1" opacity="0.2"/>
+      <text x="92" y="377" text-anchor="end">60 m</text>
+      <line x1="110" y1="452" x2="900" y2="452" stroke="#e8fbff" stroke-width="1" opacity="0.2"/>
+      <text x="92" y="457" text-anchor="end">80 m</text>
+    </g>
+
+    <text x="505" y="552" text-anchor="middle" font-size="17" fill="#f4fdff">Hype-Train-Level</text>
+    <text x="48" y="312" text-anchor="middle" font-size="17" fill="#f4fdff" transform="rotate(-90 48 312)">Tiefe unter Oberflaeche</text>
+
+    <path d="M110 156 L268 188 L426 244 L584 324 L742 412 L900 472 L900 492 L110 492 Z" fill="url(#depthFill)"/>
+    <polyline points="110,156 268,188 426,244 584,324 742,412 900,472" fill="none" stroke="#ffd36b" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline points="110,156 268,188 426,244 584,324 742,412 900,472" fill="none" stroke="#fff7d4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+
+    <g fill="#fef7dc" stroke="#082431" stroke-width="4">
+      <circle cx="110" cy="156" r="9"/>
+      <circle cx="268" cy="188" r="9"/>
+      <circle cx="426" cy="244" r="9"/>
+      <circle cx="584" cy="324" r="9"/>
+      <circle cx="742" cy="412" r="9"/>
+      <circle cx="900" cy="472" r="9"/>
+    </g>
+
+    <g fill="#f9feff">
+      <text x="110" y="522" text-anchor="middle">1</text>
+      <text x="268" y="522" text-anchor="middle">2</text>
+      <text x="426" y="522" text-anchor="middle">3</text>
+      <text x="584" y="522" text-anchor="middle">4</text>
+      <text x="742" y="522" text-anchor="middle">5</text>
+      <text x="900" y="522" text-anchor="middle">6</text>
+    </g>
+
+    <g font-size="15" font-weight="800">
+      <text x="128" y="149" fill="#061923">6 m</text>
+      <text x="286" y="181" fill="#061923">14 m</text>
+      <text x="444" y="237" fill="#061923">28 m</text>
+      <text x="602" y="317" fill="#f6fdff">48 m</text>
+      <text x="760" y="405" fill="#f6fdff">70 m</text>
+      <text x="858" y="453" fill="#f6fdff">85 m</text>
+    </g>
+  </g>
+
+  <text x="500" y="595" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" fill="#92ddea">Datenquelle: src/game/balance.ts - roundDepthByLevel = [6, 14, 28, 48, 70, 85]</text>
+</svg>

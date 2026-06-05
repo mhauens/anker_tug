@@ -24,6 +24,7 @@ export interface GameState {
   trainStartedAt: string | null;
   anchorDepth: number;
   hypeLevel: number;
+  hypeTotal: number;
   hypeProgress: number;
   hypeGoal: number;
   expiresAt: string | null;
@@ -45,6 +46,7 @@ export interface HypeTrainSnapshot {
   id: string;
   startedAt?: string;
   level: number;
+  total?: number;
   progress: number;
   goal: number;
   expiresAt: string;

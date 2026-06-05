@@ -11,10 +11,12 @@ import type {
 import { EventSubClient } from "./twitch/EventSubClient";
 import type { MappedTwitchEvent } from "./twitch/eventMapping";
 import {
-  BALANCE,
   formatMeters,
   giftSubCountForTotal,
   giftSubPullForTotal,
+  hypeTrainProgressForTotal,
+  regularSubPullForLevel,
+  subPointsForTier,
 } from "./game/balance";
 import { readJson } from "./api";
 
@@ -43,10 +45,11 @@ function getOAuthError(): string | null {
   return `Twitch-Anmeldung fehlgeschlagen: ${description ?? code}`;
 }
 
-function subImpactDetail(meters: number, wins: number): string {
+function subImpactDetail(meters: number, wins: number, points?: number): string {
   const movement = `${formatMeters(meters)} hoch`;
+  const pointDetail = points ? `, ${points.toLocaleString("de-DE")} Hype-Punkte` : "";
   if (wins <= 0) return movement;
-  return `${movement}, +${wins} Chat-Punkt${wins === 1 ? "" : "e"}`;
+  return `${movement}${pointDetail}, +${wins} Chat-Punkt${wins === 1 ? "" : "e"}`;
 }
 
 function debugSubEvent(event: MappedTwitchEvent, sub: Omit<RecentSub, "id">): void {
@@ -71,13 +74,14 @@ function applyTwitchEvent(
       engine.castVote(event.userId, event.command);
       break;
     case "regular-sub": {
-      const regularWinsBefore = engine.getState().chatWins;
-      engine.onRegularSub(event.isGift);
+      // The anchor is driven by the official Hype Train progress, not by the
+      // subscription event itself; this only feeds the recent-subs display.
       if (!event.isGift) {
-        const wins = engine.getState().chatWins - regularWinsBefore;
+        const level = engine.getState().hypeLevel;
+        const points = subPointsForTier(event.tier);
         const sub = {
           title: "1 Sub",
-          detail: subImpactDetail(BALANCE.regularSubPull, wins),
+          detail: subImpactDetail(regularSubPullForLevel(level, event.tier), 0, points),
         };
         debugSubEvent(event, sub);
         addRecentSub?.(sub);
@@ -85,14 +89,13 @@ function applyTwitchEvent(
       break;
     }
     case "gift-subs": {
-      const giftWinsBefore = engine.getState().chatWins;
-      engine.onGiftSubs(event.total);
       const giftCount = giftSubCountForTotal(event.total);
       if (giftCount <= 0) break;
-      const wins = engine.getState().chatWins - giftWinsBefore;
+      const level = engine.getState().hypeLevel;
+      const points = giftCount * subPointsForTier(event.tier);
       const sub = {
         title: `${giftCount} Gift-Subs`,
-        detail: subImpactDetail(giftSubPullForTotal(giftCount), wins),
+        detail: subImpactDetail(giftSubPullForTotal(giftCount, level, event.tier), 0, points),
       };
       debugSubEvent(event, sub);
       addRecentSub?.(sub);
@@ -128,12 +131,45 @@ export default function App() {
     ].slice(0, 5));
   };
 
+  // Translate simulated subscriptions into official Hype Train progress so the
+  // test mode exercises the exact production path: the added points drive the
+  // anchor and, once a level goal is crossed, trigger a level-up that awards the
+  // chat (anchor freed) or the streamer (level held) just like live events.
+  const simulateSubs = (title: string, points: number, displayPull: number) => {
+    const state = engine.getState();
+    const chatWinsBefore = state.chatWins;
+    if (state.trainId) {
+      const total = state.hypeTotal + points;
+      const { level, progress, goal } = hypeTrainProgressForTotal(total);
+      engine.onHypeProgress({
+        id: state.trainId,
+        startedAt: state.trainStartedAt ?? undefined,
+        level,
+        total,
+        progress,
+        goal,
+        expiresAt:
+          state.expiresAt ?? new Date(Date.now() + 5 * 60_000).toISOString(),
+      });
+    }
+    const wins = engine.getState().chatWins - chatWinsBefore;
+    addRecentSub({ title, detail: subImpactDetail(displayPull, wins, points) });
+  };
+
   const applyTestRegularSub = () => {
-    applyTwitchEvent(engine, { kind: "regular-sub", isGift: false }, addRecentSub);
+    const level = engine.getState().hypeLevel;
+    simulateSubs("1 Sub", subPointsForTier(), regularSubPullForLevel(level));
   };
 
   const applyTestGiftSubs = (total: number) => {
-    applyTwitchEvent(engine, { kind: "gift-subs", total }, addRecentSub);
+    const giftCount = giftSubCountForTotal(total);
+    if (giftCount <= 0) return;
+    const level = engine.getState().hypeLevel;
+    simulateSubs(
+      `${giftCount} Gift-Subs`,
+      giftCount * subPointsForTier(),
+      giftSubPullForTotal(giftCount, level),
+    );
   };
 
   const resetGame = () => {
@@ -256,6 +292,7 @@ export default function App() {
             engine.hydrate({
               ...parsed,
               hypeLevel: current.level,
+              hypeTotal: current.total ?? parsed.hypeTotal,
               hypeProgress: current.progress,
               hypeGoal: current.goal,
               expiresAt: current.expiresAt,

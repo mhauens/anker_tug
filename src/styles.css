@@ -30,6 +30,8 @@ button { cursor: pointer; }
 .hype-block { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center; }
 .hype-copy span { color: #a8c8d0; font-size: clamp(9px, .8vw, 13px); }
 .hype-copy strong { font: 800 clamp(17px, 1.8vw, 30px)/1 "Barlow Condensed"; color: #ffe168; }
+.hype-progress { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.hype-points { color: #ffe168; font: 700 clamp(9px, .8vw, 13px)/1 "DM Sans"; letter-spacing: .04em; font-variant-numeric: tabular-nums; }
 .hype-track { height: 10px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.12); }
 .hype-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ff9e3d, #ffe168); box-shadow: 0 0 22px #ffb63d; transition: width .3s ease; }
 .connection { justify-self: end; padding: 8px 13px; border-radius: 99px; color: #9db2b8; background: rgba(2,9,16,.56); font-size: clamp(9px, .9vw, 14px); text-transform: capitalize; }

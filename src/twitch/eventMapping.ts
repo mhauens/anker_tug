@@ -24,8 +24,8 @@ export type MappedTwitchEvent =
   | { kind: "hype-begin" | "hype-progress"; snapshot: HypeTrainSnapshot }
   | { kind: "hype-end"; trainId: string }
   | { kind: "chat-vote"; userId: string; command: VoteCommand }
-  | { kind: "regular-sub"; isGift: boolean }
-  | { kind: "gift-subs"; total: number }
+  | { kind: "regular-sub"; isGift: boolean; tier?: string }
+  | { kind: "gift-subs"; total: number; tier?: string }
   | { kind: "ignored" };
 
 function asString(value: unknown): string {
@@ -36,11 +36,16 @@ function asNumber(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+function asOptionalNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
 function mapHype(event: Record<string, unknown>): HypeTrainSnapshot {
   return {
     id: asString(event.id),
     startedAt: asString(event.started_at),
     level: Math.max(1, asNumber(event.level)),
+    total: asOptionalNumber(event.total),
     progress: asNumber(event.progress),
     goal: asNumber(event.goal),
     expiresAt: asString(event.expires_at),
@@ -79,11 +84,23 @@ export function mapEventSubNotification(
         : { kind: "ignored" };
     }
     case "channel.subscribe":
-      return { kind: "regular-sub", isGift: event.is_gift === true };
+      return {
+        kind: "regular-sub",
+        isGift: event.is_gift === true,
+        tier: asString(event.tier) || undefined,
+      };
     case "channel.subscription.message":
-      return { kind: "regular-sub", isGift: false };
+      return {
+        kind: "regular-sub",
+        isGift: false,
+        tier: asString(event.tier) || undefined,
+      };
     case "channel.subscription.gift":
-      return { kind: "gift-subs", total: asNumber(event.total) };
+      return {
+        kind: "gift-subs",
+        total: asNumber(event.total),
+        tier: asString(event.tier) || undefined,
+      };
     default:
       return { kind: "ignored" };
   }

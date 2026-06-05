@@ -3,6 +3,10 @@ import {
   BALANCE,
   giftSubCountForTotal,
   giftSubPullForTotal,
+  hypeTrainProgressForTotal,
+  hypeTrainTotalPointsForProgress,
+  naturalSinkForLevel,
+  regularSubPullForLevel,
   roundDepthForLevel,
   skillStrengthForLevel,
   visualDepthPercent,
@@ -30,7 +34,9 @@ describe("GameEngine", () => {
     expect(BALANCE.skillGoodSink).toBe(BALANCE.regularSubPull * 5);
     expect(BALANCE.skillGreatSink).toBe(BALANCE.regularSubPull * 10);
     expect(BALANCE.skillPerfectSink).toBe(BALANCE.regularSubPull * 20);
-    expect(BALANCE.giftSubPullMaximum).toBeGreaterThan(BALANCE.skillPerfectSink);
+    expect(giftSubPullForTotal(2, 1, "3000")).toBeGreaterThan(
+      BALANCE.skillPerfectSink,
+    );
   });
 
   it("makes early levels shorter and their skillchecks proportionally weaker", () => {
@@ -40,26 +46,65 @@ describe("GameEngine", () => {
     expect(skillStrengthForLevel(6)).toBe(1);
   });
 
-  it("keeps skillchecks demanding across levels", () => {
-    expect(BALANCE.skillBaseDurationSeconds).toBeLessThan(2.4);
-    expect(BALANCE.skillBaseGoodWidth).toBeLessThan(0.32);
-    expect(BALANCE.skillMinimumGoodWidth).toBeLessThan(0.16);
-    expect(BALANCE.skillSpeedPerLevel).toBeGreaterThan(0.08);
+  it("keeps skillchecks demanding but fair across levels", () => {
+    // Low levels stay tight (narrow base zone, brisk marker) so they are not
+    // trivial; the gentle per-level width loss keeps high levels playable.
+    expect(BALANCE.skillBaseDurationSeconds).toBeLessThan(2.5);
+    expect(BALANCE.skillBaseGoodWidth).toBeLessThan(0.3);
+    expect(BALANCE.skillMinimumGoodWidth).toBeLessThan(0.2);
+    expect(BALANCE.skillMinimumGoodWidth).toBeGreaterThan(0.15);
+    expect(BALANCE.skillSpeedPerLevel).toBeGreaterThan(0.05);
+  });
+
+  it("sinks the anchor faster on higher levels", () => {
+    expect(naturalSinkForLevel(1)).toBeCloseTo(BALANCE.naturalSinkPerSecond);
+    expect(naturalSinkForLevel(6)).toBeGreaterThan(naturalSinkForLevel(1));
+    expect(naturalSinkForLevel(6)).toBeCloseTo(
+      BALANCE.naturalSinkPerSecond * (1 + 5 * BALANCE.naturalSinkPerLevel),
+    );
+  });
+
+  it("keeps subscriptions impactful at very high levels", () => {
+    // Past the pull-goal cap the meters-per-sub plateau instead of collapsing.
+    expect(regularSubPullForLevel(30)).toBeCloseTo(
+      (BALANCE.tier1SubPoints / BALANCE.maxHypePullGoal) * roundDepthForLevel(30),
+    );
+    // Without the cap a level-30 sub would barely move the anchor.
+    const uncapped =
+      (BALANCE.tier1SubPoints / 82200) * roundDepthForLevel(30);
+    expect(regularSubPullForLevel(30)).toBeGreaterThan(uncapped * 3);
+    // A single large gift bomb frees the anchor at level 30, so the chat keeps
+    // a real chance no matter how high the Hype Train has climbed.
+    expect(giftSubPullForTotal(100, 30)).toBeGreaterThan(roundDepthForLevel(30));
   });
 
   it("scales community voting impact with the current hype level", () => {
-    expect(votePullForLevel(1)).toBe(BALANCE.regularSubPull);
-    expect(votePullForLevel(6)).toBe(BALANCE.regularSubPull * 6);
+    expect(votePullForLevel(1)).toBeCloseTo(
+      roundDepthForLevel(1) * BALANCE.votePullDepthFraction,
+    );
+    expect(votePullForLevel(6)).toBeCloseTo(
+      roundDepthForLevel(6) * BALANCE.votePullDepthFraction,
+    );
+    expect(votePullForLevel(6)).toBeGreaterThan(votePullForLevel(1));
+    // Depth caps at level 6, so voting keeps the same real impact on high levels.
+    expect(votePullForLevel(30)).toBe(votePullForLevel(6));
   });
 
-  it("keeps large gift tiers visibly distinct", () => {
+  it("scales subs from Twitch Hype Train points", () => {
     expect(giftSubCountForTotal(1001)).toBe(1000);
-    expect(giftSubPullForTotal(6) - giftSubPullForTotal(5)).toBeGreaterThan(0.6);
-    expect(giftSubPullForTotal(7) - giftSubPullForTotal(6)).toBeGreaterThan(0.6);
-    expect(giftSubPullForTotal(8) - giftSubPullForTotal(7)).toBeGreaterThan(0.6);
-    expect(giftSubPullForTotal(20) - giftSubPullForTotal(5)).toBeGreaterThan(10);
-    expect(giftSubPullForTotal(200) - giftSubPullForTotal(100)).toBeGreaterThan(15);
-    expect(giftSubPullForTotal(1000) - giftSubPullForTotal(200)).toBeGreaterThan(400);
+    expect(regularSubPullForLevel(1)).toBeCloseTo((500 / 1600) * roundDepthForLevel(1));
+    expect(regularSubPullForLevel(1, "2000")).toBeCloseTo(
+      regularSubPullForLevel(1) * 2,
+    );
+    expect(regularSubPullForLevel(1, "3000")).toBeCloseTo(
+      regularSubPullForLevel(1) * 5,
+    );
+    expect(giftSubPullForTotal(6) - giftSubPullForTotal(5)).toBeCloseTo(
+      regularSubPullForLevel(1),
+    );
+    expect(giftSubPullForTotal(20) - giftSubPullForTotal(5)).toBeCloseTo(
+      regularSubPullForLevel(1) * 15,
+    );
     expect(giftSubPullForTotal(1001)).toBe(giftSubPullForTotal(1000));
   });
 
@@ -83,7 +128,28 @@ describe("GameEngine", () => {
     expect(engine.getState().winner).toBe("streamer");
   });
 
-  it("keeps only the latest vote per user and resolves level-scaled pull after 30 seconds", () => {
+  it("lets a winning pull vote out-muscle the natural sink within one window", () => {
+    const engine = new GameEngine(() => 0);
+    startPlaying(engine); // level 1, no skillcheck hit
+    const before = engine.getState().anchorDepth;
+
+    engine.castVote("user-a", "pull");
+    engine.castVote("user-b", "pull");
+    engine.castVote("user-c", "pull");
+
+    const ticksPerWindow = (BALANCE.voteWindowSeconds * 1000) / 250;
+    for (let index = 0; index < ticksPerWindow; index += 1) {
+      engine.tick(250, Date.now(), true);
+    }
+
+    // The vote must move the anchor upward on balance, not be eaten by sinking.
+    expect(engine.getState().anchorDepth).toBeLessThan(before);
+    expect(votePullForLevel(1)).toBeGreaterThan(
+      BALANCE.naturalSinkPerSecond * BALANCE.voteWindowSeconds,
+    );
+  });
+
+  it("keeps only the latest vote per user and resolves level-scaled pull after the vote window", () => {
     const engine = new GameEngine(() => 0);
     const control = new GameEngine(() => 0);
     startPlaying(engine);
@@ -183,7 +249,7 @@ describe("GameEngine", () => {
     expect(state.chatWins).toBeGreaterThan(0);
     expect(state.phase).toBe("countdown");
     expect(state.roundNumber).toBe(state.chatWins + 1);
-    expect(appliedPull).toBeCloseTo(100 * BALANCE.regularSubPull);
+    expect(appliedPull).toBeCloseTo(100 * regularSubPullForLevel(1));
   });
 
   it("processes subscription bursts during countdown without dropping events", () => {
@@ -199,9 +265,8 @@ describe("GameEngine", () => {
       engine.onRegularSub(false);
     }
     expect(engine.getState().phase).toBe("countdown");
-    expect(engine.getState().anchorDepth).toBeCloseTo(
-      roundDepthForLevel(6) - 100 * BALANCE.regularSubPull,
-    );
+    expect(engine.getState().chatWins).toBeGreaterThan(0);
+    expect(engine.getState().roundNumber).toBe(engine.getState().chatWins + 1);
   });
 
   it("processes a thousand rapid subscription events without losing the match", () => {
@@ -220,33 +285,38 @@ describe("GameEngine", () => {
     expect(engine.getState().roundNumber).toBe(engine.getState().chatWins + 1);
   });
 
-  it("awards the streamer on level-up and starts the next round", () => {
-    const engine = new GameEngine(() => 0.5);
-    engine.onHypeProgress({ id: "late-begin", level: 2, progress: 10, goal: 100, expiresAt: future() });
-    expect(engine.getState().phase).toBe("countdown");
-    startPlaying(engine);
-    engine.onHypeProgress({ id: "train-1", level: 3, progress: 20, goal: 500, expiresAt: future() });
-    expect(engine.getState()).toMatchObject({
-      phase: "countdown",
-      hypeLevel: 3,
-      streamerWins: 2,
-      chatWins: 0,
-      roundNumber: 2,
-      anchorDepth: roundDepthForLevel(3),
-      lastAward: { side: "streamer", points: 2 },
-    });
-  });
-
-  it("does not free the anchor automatically when Twitch advances the level", () => {
+  it("pulls the anchor from official Hype Train progress", () => {
     const engine = new GameEngine(() => 0);
     startPlaying(engine);
-    for (let index = 0; index < 8; index += 1) engine.onRegularSub(false);
+    const before = engine.getState().anchorDepth;
+
+    engine.onHypeProgress({
+      id: "train-1",
+      level: 1,
+      total: 500,
+      progress: 500,
+      goal: 1600,
+      expiresAt: future(),
+    });
+
+    expect(engine.getState().anchorDepth).toBeCloseTo(
+      before - regularSubPullForLevel(1),
+    );
+    expect(engine.getState().hypeTotal).toBe(500);
+    expect(engine.getState().hypeProgress).toBe(500);
+  });
+
+  it("counts official level-up progress before awarding a held level", () => {
+    const engine = new GameEngine(() => 0);
+    startPlaying(engine);
+    engine.onRegularSub(false);
 
     expect(engine.getState().anchorDepth).toBeGreaterThan(0);
 
     engine.onHypeProgress({
       id: "train-1",
       level: 2,
+      total: 1610,
       progress: 10,
       goal: 500,
       expiresAt: future(),
@@ -255,17 +325,76 @@ describe("GameEngine", () => {
     expect(engine.getState()).toMatchObject({
       phase: "countdown",
       hypeLevel: 2,
-      streamerWins: 1,
-      chatWins: 0,
+      hypeTotal: 1610,
+      streamerWins: 0,
+      chatWins: 1,
       roundNumber: 2,
       anchorDepth: roundDepthForLevel(2),
-      lastAward: { side: "streamer", points: 1 },
+      lastAward: { side: "chat", points: 1 },
+    });
+  });
+
+  it("derives Hype Train level and progress from a cumulative total", () => {
+    expect(hypeTrainProgressForTotal(0)).toMatchObject({ level: 1, progress: 0 });
+    expect(hypeTrainProgressForTotal(500)).toMatchObject({ level: 1, progress: 500 });
+    expect(hypeTrainProgressForTotal(1600)).toMatchObject({ level: 2, progress: 0 });
+    expect(hypeTrainProgressForTotal(1610)).toMatchObject({ level: 2, progress: 10 });
+    expect(hypeTrainProgressForTotal(3400)).toMatchObject({ level: 3, progress: 0 });
+
+    // Round-trips with hypeTrainTotalPointsForProgress.
+    for (const [level, progress] of [[1, 0], [1, 499], [2, 10], [3, 250]]) {
+      const total = hypeTrainTotalPointsForProgress(level, progress);
+      expect(hypeTrainProgressForTotal(total)).toMatchObject({ level, progress });
+    }
+  });
+
+  it("lets simulated subs drive official progress into a chat level-up", () => {
+    const engine = new GameEngine(() => 0);
+    startPlaying(engine);
+
+    // Accumulate tier-1 sub points (500 each) the way the test mode does: feed
+    // the growing total through the official Hype Train progress path.
+    let total = engine.getState().hypeTotal;
+    for (let index = 0; index < 4; index += 1) {
+      total += BALANCE.tier1SubPoints;
+      const { level, progress, goal } = hypeTrainProgressForTotal(total);
+      engine.onHypeProgress({ id: "train-1", level, total, progress, goal, expiresAt: future() });
+    }
+
+    expect(engine.getState()).toMatchObject({
+      hypeLevel: 2,
+      chatWins: 1,
+      streamerWins: 0,
+      lastAward: { side: "chat", points: 1 },
+    });
+  });
+
+  it("awards the chat one point per level when a sub bomb skips several at once", () => {
+    const engine = new GameEngine(() => 0);
+    startPlaying(engine);
+
+    // A single huge bomb worth enough points to vault from level 1 to level 4.
+    const total = hypeTrainTotalPointsForProgress(4, 50);
+    const { level, progress, goal } = hypeTrainProgressForTotal(total);
+    engine.onHypeProgress({ id: "train-1", level, total, progress, goal, expiresAt: future() });
+
+    expect(engine.getState()).toMatchObject({
+      hypeLevel: 4,
+      chatWins: 3,
+      streamerWins: 0,
+      roundNumber: 4,
+      lastAward: { side: "chat", points: 3 },
     });
   });
 
   it("awards the streamer on level-up when the anchor is still below the surface", () => {
     const engine = new GameEngine(() => 0);
     startPlaying(engine);
+
+    // Let the anchor drift down well clear of the surface so that completing
+    // the level's points alone cannot free it: the streamer held the level.
+    for (let index = 0; index < 80; index += 1) engine.tick(250, Date.now(), true);
+    expect(engine.getState().anchorDepth).toBeGreaterThan(roundDepthForLevel(1));
 
     engine.onHypeProgress({
       id: "train-1",
