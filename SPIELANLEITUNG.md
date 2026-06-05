@@ -37,9 +37,9 @@ Auch angekuendigte Resubs werden als regulaerer Sub gewertet. Gift-Subs werden u
 
 ### Gift-Subs
 
-Gift-Sub-Pakete erzeugen mehr Zugkraft als ein einzelner Sub. Unterstuetzt werden auch grosse Wellen wie 10, 20, 50, 100 oder 200 Gift-Subs.
+Gift-Sub-Pakete erzeugen mehr Zugkraft als ein einzelner Sub. Unterstuetzt werden auch Zwischenwerte und grosse Wellen wie 6, 7, 8, 10, 20, 50, 100, 200 oder 1000 Gift-Subs.
 
-Die Zugkraft steigt mit der Anzahl der Gifts, ist aber nicht linear. Ein 200er Gift ist deutlich staerker als ein 20er Gift, beendet jedoch nicht automatisch unbegrenzt viele Runden.
+Die Zugkraft steigt mit jeder zusaetzlichen Gift-Anzahl spuerbar weiter und bekommt einen kleinen Bonus fuer groessere Wellen. Eine 1000er-Subbombe ist die groesste unterstuetzte Welle und deutlich staerker als ein 200er Gift, beendet jedoch nicht automatisch unbegrenzt viele Runden.
 
 Ueberschuessige Zugkraft geht beim Erreichen der Oberflaeche nicht verloren, sondern wird auf die folgende Runde uebertragen.
 
@@ -50,22 +50,22 @@ Alle 30 Sekunden wird ein Chat-Voting ausgewertet. Jeder Twitch-Account hat pro 
 - `!ziehen`: Hilft dem Chat und zieht den Anker nach oben.
 - `!senken`: Hilft dem Streamer und senkt den Anker.
 
-Die Seite mit den meisten Stimmen bewegt den Anker mit der Kraft eines regulaeren Subs. Bei Gleichstand bleibt der Anker unveraendert.
+Die Seite mit den meisten Stimmen bewegt den Anker je nach Hype-Train-Level staerker. In Level 1 entspricht das einem regulaeren Sub, in hoeheren Leveln entsprechend mehreren Subs. Bei Gleichstand bleibt der Anker unveraendert.
 
 Der Balancebalken zeigt waehrend der Abstimmung, zu welcher Seite das Voting tendiert.
 
 ## Aktion des Streamers
 
-In regelmaessigen Abstaenden erscheint ein **Ankermanoever**.
+In regelmaessigen Abstaenden erscheint ein **Ankermanoever**. Die Zielbereiche sind bewusst knapp gehalten und werden in hoeheren Hype-Train-Leveln schneller und enger.
 
 Der Streamer drueckt die **Leertaste**, waehrend der bewegliche Marker in einem Zielbereich liegt:
 
 - Grosser Zielbereich: gutes Manoever
 - Gelber Bereich: sehr gutes Manoever
 - Kleiner roter Bereich in der Mitte: perfektes Manoever
-- Ausserhalb des Zielbereichs oder nicht rechtzeitig gedrueckt: Fehlversuch; der Chat erhaelt zusaetzliche Zugkraft
+- Ausserhalb des Zielbereichs oder nicht rechtzeitig gedrueckt: Fehlversuch; der Anker bleibt stabil
 
-Ein besser getroffener Bereich senkt den Anker staerker. In hoeheren Hype-Train-Leveln werden die Skillchecks anspruchsvoller und gleichzeitig wirkungsvoller.
+Ein besser getroffener Bereich senkt den Anker staerker. Gruen entspricht 5 Subs, Gelb 10 Subs und Perfekt 20 Subs. In hoeheren Hype-Train-Leveln werden die Skillchecks anspruchsvoller und gleichzeitig wirkungsvoller.
 
 ## Level und Balance
 
@@ -83,10 +83,11 @@ Jede Runde beginnt optisch nahe am Meeresgrund. Die intern notwendige Zugkraft i
 - Laufende Rundennummer
 - Aktuelles Hype-Train-Level und dessen Twitch-Fortschritt
 - Status der Twitch-Verbindung
+- Dezente Liste der letzten fuenf Sub-Ereignisse mit Metern und sofort gewonnenen Chatpunkten
 
 ### Linke Tiefenanzeige
 
-Zeigt die aktuelle Position des Ankers zwischen Oberflaeche und Meeresgrund.
+Zeigt die aktuelle Position des Ankers zwischen Oberflaeche und Meeresgrund in Metern. Die Skala passt sich an die Laenge der aktuellen Hype-Train-Stufe an.
 
 ### Community-Voting
 
@@ -95,6 +96,10 @@ Zeigt den Countdown, beide Chat-Befehle, die Stimmen und den aktuellen Abstimmun
 ### Ereignismeldung
 
 Eine kurze Meldung informiert ueber Subs, Gift-Subs, Skillchecks, Rundensiege und Levelwechsel.
+
+### Letzte Subs
+
+Die dezente Liste rechts oben zeigt die letzten fuenf Sub-Ereignisse und wie viele Meter sie den Anker nach oben gezogen haben.
 
 ## Twitch-Verbindung
 
@@ -109,7 +114,7 @@ Das aufklappbare Menue **Testmodus** dient zum Ausprobieren ohne echten Hype Tra
 - Runde starten
 - Hype-Train-Level erhoehen
 - Einzelnen Sub simulieren
-- 5 bis 200 Gift-Subs simulieren
+- 5 bis 1000 Gift-Subs simulieren, inklusive Zwischenwerten wie 6, 7 und 8
 - Stimmen fuer `!ziehen` und `!senken` erzeugen
 - Skillcheck ausloesen
 - Hype Train beenden

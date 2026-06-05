@@ -1,5 +1,10 @@
 import type { ConnectionState, GameState } from "../game/types";
-import { visualDepthPercent } from "../game/balance";
+import {
+  depthTicksForLevel,
+  formatMeters,
+  visualDepthPercent,
+  votePullForLevel,
+} from "../game/balance";
 
 interface HudProps {
   state: GameState;
@@ -20,6 +25,12 @@ export function Hud({ state, connection }: HudProps) {
   const pullPercent = totalVotes
     ? (state.voteCounts.pull / totalVotes) * 100
     : 50;
+  const depthTicks = depthTicksForLevel(state.hypeLevel);
+  const awardLabel = state.lastAward
+    ? `${state.lastAward.points} ${
+        state.lastAward.points === 1 ? "Punkt" : "Punkte"
+      } für ${state.lastAward.side === "streamer" ? "Kami" : "Chat"}`
+    : null;
 
   return (
     <div className="hud">
@@ -48,21 +59,52 @@ export function Hud({ state, connection }: HudProps) {
       </header>
 
       <aside className="depth-meter">
-        <span>OBERFLAECHE</span>
-        <div className="depth-track">
-          <i
-            style={{
-              top: `${visualDepthPercent(state.anchorDepth, state.hypeLevel)}%`,
-            }}
-          />
+        <span>OBERFLAECHE 0 m</span>
+        <div className="depth-meter__body">
+          <div className="depth-track">
+            <i
+              style={{
+                top: `${visualDepthPercent(state.anchorDepth, state.hypeLevel)}%`,
+              }}
+            />
+          </div>
+          <div className="depth-scale" aria-hidden="true">
+            {depthTicks.map((tick) => (
+              <b
+                key={tick}
+                style={{
+                  top: `${visualDepthPercent(tick, state.hypeLevel)}%`,
+                }}
+              >
+                <i />
+                <em>{formatMeters(tick)}</em>
+              </b>
+            ))}
+          </div>
         </div>
-        <span>MEERESGRUND</span>
+        <span>MEERESGRUND {formatMeters(depthTicks[depthTicks.length - 1] ?? 0)}</span>
       </aside>
 
       {state.phase === "countdown" && (
-        <div className="center-callout">
-          <span>Runde {state.roundNumber} beginnt</span>
-          <strong>{state.countdownSeconds || "LOS"}</strong>
+        <div
+          className={`center-callout${
+            state.chatSkipRounds > 1 ? " center-callout--skip" : ""
+          }`}
+        >
+          {awardLabel ? (
+            <>
+              <span>{state.chatSkipRounds > 1 ? "Sub-Burst" : "Punktgewinn"}</span>
+              <strong>{awardLabel}</strong>
+              {state.chatSkipRounds > 1 && (
+                <p>Chat ueberspringt {state.chatSkipRounds} Runden</p>
+              )}
+            </>
+          ) : (
+            <>
+              <span>Hype Train</span>
+              <strong>BEREIT IN {state.countdownSeconds || "0"}s</strong>
+            </>
+          )}
         </div>
       )}
 
@@ -107,7 +149,7 @@ export function Hud({ state, connection }: HudProps) {
             <i className="vote-balance__pull" style={{ width: `${pullPercent}%` }} />
             <span style={{ left: `${pullPercent}%` }} />
           </div>
-          <small>Gewinner bewegt den Anker mit der Kraft eines Subs</small>
+          <small>Gewinner bewegt den Anker um {formatMeters(votePullForLevel(state.hypeLevel))}</small>
         </section>
       )}
 

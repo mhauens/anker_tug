@@ -21,17 +21,17 @@ describe("Twitch event mapping", () => {
     expect(event).toEqual({ kind: "regular-sub", isGift: true });
   });
 
-  it("preserves the full size of large gift bursts", () => {
+  it("preserves the full size of the largest gift burst", () => {
     const event = mapEventSubNotification({
       metadata: {
-        message_id: "gift-200",
+        message_id: "gift-1000",
         message_type: "notification",
         message_timestamp: new Date().toISOString(),
         subscription_type: "channel.subscription.gift",
       },
-      payload: { event: { total: 200 } },
+      payload: { event: { total: 1000 } },
     });
-    expect(event).toEqual({ kind: "gift-subs", total: 200 });
+    expect(event).toEqual({ kind: "gift-subs", total: 1000 });
   });
 
   it("maps announced resubscriptions as one regular subscription", () => {

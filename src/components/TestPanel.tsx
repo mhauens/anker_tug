@@ -5,9 +5,18 @@ import type { GameState, VoteCommand } from "../game/types";
 interface TestPanelProps {
   engine: GameEngine;
   state: GameState;
+  onRegularSub: () => void;
+  onGiftSubs: (total: number) => void;
+  onReset: () => void;
 }
 
-export function TestPanel({ engine, state }: TestPanelProps) {
+export function TestPanel({
+  engine,
+  state,
+  onRegularSub,
+  onGiftSubs,
+  onReset,
+}: TestPanelProps) {
   const voter = useRef(0);
 
   const vote = (command: VoteCommand) => {
@@ -45,9 +54,9 @@ export function TestPanel({ engine, state }: TestPanelProps) {
         >
           Level +1
         </button>
-        <button onClick={() => engine.onRegularSub(false)}>Sub</button>
-        {[5, 10, 20, 50, 100, 200].map((total) => (
-          <button key={total} onClick={() => engine.onGiftSubs(total)}>
+        <button onClick={onRegularSub}>Sub</button>
+        {[5, 6, 7, 8, 10, 20, 50, 100, 200, 1000].map((total) => (
+          <button key={total} onClick={() => onGiftSubs(total)}>
             {total} Gift-Subs
           </button>
         ))}
@@ -60,7 +69,7 @@ export function TestPanel({ engine, state }: TestPanelProps) {
         >
           Runde beenden
         </button>
-        <button onClick={() => engine.reset()}>Zuruecksetzen</button>
+        <button onClick={onReset}>Zuruecksetzen</button>
       </div>
     </details>
   );

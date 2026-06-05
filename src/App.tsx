@@ -10,6 +10,12 @@ import type {
 } from "./game/types";
 import { EventSubClient } from "./twitch/EventSubClient";
 import type { MappedTwitchEvent } from "./twitch/eventMapping";
+import {
+  BALANCE,
+  formatMeters,
+  giftSubCountForTotal,
+  giftSubPullForTotal,
+} from "./game/balance";
 import { readJson } from "./api";
 
 interface PublicSession {
@@ -18,8 +24,16 @@ interface PublicSession {
   maintenanceAfter?: number;
 }
 
+interface RecentSub {
+  id: number;
+  title: string;
+  detail: string;
+}
+
 const STORAGE_KEY = "anchor-tug-game-state-v1";
 const demoMode = import.meta.env.VITE_DEMO_MODE === "true";
+const testMode = import.meta.env.VITE_TEST_MODE === "true";
+const debugSubs = import.meta.env.VITE_DEBUG_SUBS === "true";
 
 function getOAuthError(): string | null {
   const params = new URLSearchParams(window.location.search);
@@ -29,7 +43,22 @@ function getOAuthError(): string | null {
   return `Twitch-Anmeldung fehlgeschlagen: ${description ?? code}`;
 }
 
-function applyTwitchEvent(engine: GameEngine, event: MappedTwitchEvent): void {
+function subImpactDetail(meters: number, wins: number): string {
+  const movement = `${formatMeters(meters)} hoch`;
+  if (wins <= 0) return movement;
+  return `${movement}, +${wins} Chat-Punkt${wins === 1 ? "" : "e"}`;
+}
+
+function debugSubEvent(event: MappedTwitchEvent, sub: Omit<RecentSub, "id">): void {
+  if (!debugSubs) return;
+  console.info("[Anchor Tug] Sub-Event", { event, sub });
+}
+
+function applyTwitchEvent(
+  engine: GameEngine,
+  event: MappedTwitchEvent,
+  addRecentSub?: (sub: Omit<RecentSub, "id">) => void,
+): void {
   switch (event.kind) {
     case "hype-begin":
     case "hype-progress":
@@ -41,12 +70,34 @@ function applyTwitchEvent(engine: GameEngine, event: MappedTwitchEvent): void {
     case "chat-vote":
       engine.castVote(event.userId, event.command);
       break;
-    case "regular-sub":
+    case "regular-sub": {
+      const regularWinsBefore = engine.getState().chatWins;
       engine.onRegularSub(event.isGift);
+      if (!event.isGift) {
+        const wins = engine.getState().chatWins - regularWinsBefore;
+        const sub = {
+          title: "1 Sub",
+          detail: subImpactDetail(BALANCE.regularSubPull, wins),
+        };
+        debugSubEvent(event, sub);
+        addRecentSub?.(sub);
+      }
       break;
-    case "gift-subs":
+    }
+    case "gift-subs": {
+      const giftWinsBefore = engine.getState().chatWins;
       engine.onGiftSubs(event.total);
+      const giftCount = giftSubCountForTotal(event.total);
+      if (giftCount <= 0) break;
+      const wins = engine.getState().chatWins - giftWinsBefore;
+      const sub = {
+        title: `${giftCount} Gift-Subs`,
+        detail: subImpactDetail(giftSubPullForTotal(giftCount), wins),
+      };
+      debugSubEvent(event, sub);
+      addRecentSub?.(sub);
       break;
+    }
     case "ignored":
       break;
   }
@@ -59,13 +110,38 @@ export default function App() {
   const [connection, setConnection] = useState<ConnectionState>(
     demoMode ? "connected" : "disconnected",
   );
+  const [recentSubs, setRecentSubs] = useState<RecentSub[]>([]);
   const [error, setError] = useState<string | null>(() => {
     return getOAuthError();
   });
   const eventSub = useRef<EventSubClient | null>(null);
   const demoStarted = useRef(false);
+  const recentSubId = useRef(0);
 
   useEffect(() => engine.subscribe(setGameState), [engine]);
+
+  const addRecentSub = (sub: Omit<RecentSub, "id">) => {
+    recentSubId.current += 1;
+    setRecentSubs((current) => [
+      { id: recentSubId.current, ...sub },
+      ...current,
+    ].slice(0, 5));
+  };
+
+  const applyTestRegularSub = () => {
+    applyTwitchEvent(engine, { kind: "regular-sub", isGift: false }, addRecentSub);
+  };
+
+  const applyTestGiftSubs = (total: number) => {
+    applyTwitchEvent(engine, { kind: "gift-subs", total }, addRecentSub);
+  };
+
+  const resetGame = () => {
+    engine.reset();
+    recentSubId.current = 0;
+    setRecentSubs([]);
+    localStorage.removeItem(STORAGE_KEY);
+  };
 
   useEffect(() => {
     const oauthError = getOAuthError();
@@ -158,7 +234,7 @@ export default function App() {
           pendingEvents.push(event);
           return;
         }
-        applyTwitchEvent(engine, event);
+        applyTwitchEvent(engine, event, addRecentSub);
       },
     });
     eventSub.current = client;
@@ -199,7 +275,9 @@ export default function App() {
       .finally(() => {
         if (disposed) return;
         initialized = true;
-        for (const event of pendingEvents) applyTwitchEvent(engine, event);
+        for (const event of pendingEvents) {
+          applyTwitchEvent(engine, event, addRecentSub);
+        }
         pendingEvents.length = 0;
       });
 
@@ -321,7 +399,30 @@ export default function App() {
       <div className="stage">
         <GameCanvas state={gameState} />
         <Hud state={gameState} connection={connection} />
-        <TestPanel engine={engine} state={gameState} />
+        {testMode && (
+          <TestPanel
+            engine={engine}
+            state={gameState}
+            onRegularSub={applyTestRegularSub}
+            onGiftSubs={applyTestGiftSubs}
+            onReset={resetGame}
+          />
+        )}
+        <aside className="recent-subs" aria-label="Letzte Subs">
+          <span>Letzte Subs</span>
+          {recentSubs.length === 0 ? (
+            <small>Noch keine Sub-Events</small>
+          ) : (
+            <ol>
+              {recentSubs.map((sub) => (
+                <li key={sub.id}>
+                  <strong>{sub.title}</strong>
+                  <em>{sub.detail}</em>
+                </li>
+              ))}
+            </ol>
+          )}
+        </aside>
         <div className="control-strip">
           <div>
             <span>Verbunden als</span>

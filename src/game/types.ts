@@ -6,6 +6,7 @@ export type ConnectionState =
   | "connecting"
   | "connected"
   | "reconnecting";
+export type AwardSide = "streamer" | "chat";
 
 export interface SkillCheckState {
   active: boolean;
@@ -32,6 +33,8 @@ export interface GameState {
   roundNumber: number;
   streamerWins: number;
   chatWins: number;
+  chatSkipRounds: number;
+  lastAward: { side: AwardSide; points: number } | null;
   winner: Winner;
   countdownSeconds: number;
   skillCheck: SkillCheckState;

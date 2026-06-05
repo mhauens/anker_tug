@@ -21,10 +21,12 @@ button { cursor: pointer; }
 .brand-block, .hype-copy { display: flex; flex-direction: column; }
 .eyebrow, .vote-heading > span, .skill-panel span, .result-card > span, .center-callout span { font: 700 clamp(10px, 1vw, 16px)/1 "DM Sans"; letter-spacing: .2em; text-transform: uppercase; color: #79ddf3; }
 .brand-block strong { font: 800 clamp(22px, 2.6vw, 45px)/.9 "Barlow Condensed"; letter-spacing: .04em; }
-.scoreboard { display: grid; grid-template-columns: auto auto auto; gap: 10px; align-items: center; padding: 8px 12px; border: 1px solid rgba(121,221,243,.22); border-radius: 12px; background: rgba(2,9,16,.58); }
-.scoreboard span { display: flex; gap: 5px; align-items: baseline; color: #a8c8d0; font-size: clamp(8px, .65vw, 11px); }
-.scoreboard span strong { color: #ffe168; font: 800 clamp(20px, 1.8vw, 30px)/1 "Barlow Condensed"; }
-.scoreboard b { color: #79ddf3; font-size: clamp(8px, .65vw, 11px); white-space: nowrap; }
+.scoreboard { display: grid; grid-template-columns: minmax(82px, auto) auto minmax(82px, auto); gap: 8px; align-items: center; padding: 7px 9px; border: 1px solid rgba(121,221,243,.34); border-radius: 12px; background: rgba(2,9,16,.72); box-shadow: 0 12px 32px rgba(0,0,0,.28), inset 0 0 22px rgba(121,221,243,.08); }
+.scoreboard span { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; min-height: 42px; padding: 5px 9px; border-radius: 8px; color: #d7eef3; font-size: clamp(8px, .7vw, 12px); font-weight: 800; background: rgba(255,255,255,.07); text-transform: uppercase; }
+.scoreboard span:first-child { border: 1px solid rgba(86,237,156,.34); }
+.scoreboard span:last-child { border: 1px solid rgba(255,225,104,.34); }
+.scoreboard span strong { color: #fff; font: 800 clamp(34px, 3.1vw, 58px)/.8 "Barlow Condensed"; text-shadow: 0 0 16px rgba(255,225,104,.55); }
+.scoreboard b { padding: 7px 9px; border-radius: 8px; color: #79ddf3; background: rgba(121,221,243,.08); font-size: clamp(9px, .72vw, 12px); white-space: nowrap; }
 .hype-block { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center; }
 .hype-copy span { color: #a8c8d0; font-size: clamp(9px, .8vw, 13px); }
 .hype-copy strong { font: 800 clamp(17px, 1.8vw, 30px)/1 "Barlow Condensed"; color: #ffe168; }
@@ -33,11 +35,20 @@ button { cursor: pointer; }
 .connection { justify-self: end; padding: 8px 13px; border-radius: 99px; color: #9db2b8; background: rgba(2,9,16,.56); font-size: clamp(9px, .9vw, 14px); text-transform: capitalize; }
 .connection i { display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; background: #e36e6e; }
 .connection--connected i { background: #56ed9c; box-shadow: 0 0 14px #56ed9c; }
-.depth-meter { position: absolute; left: 28px; top: 18%; bottom: 14%; display: flex; flex-direction: column; align-items: center; gap: 10px; color: rgba(220,247,252,.58); font: 700 clamp(7px, .65vw, 11px)/1 "DM Sans"; letter-spacing: .12em; }
-.depth-track { position: relative; width: 7px; flex: 1; border-radius: 99px; background: linear-gradient(#80e6f6, #11394a); }
+.depth-meter { position: absolute; left: 28px; top: 18%; bottom: 14%; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; color: rgba(220,247,252,.58); font: 700 clamp(7px, .65vw, 11px)/1 "DM Sans"; letter-spacing: .12em; }
+.depth-meter__body { position: relative; display: grid; grid-template-columns: 7px auto; column-gap: 11px; flex: 1; min-height: 0; }
+.depth-track { position: relative; width: 7px; height: 100%; border-radius: 99px; background: linear-gradient(#80e6f6, #11394a); }
 .depth-track i { position: absolute; left: 50%; width: 24px; height: 24px; border: 4px solid #f6fcff; border-radius: 50%; background: #41cbe7; transform: translate(-50%, -50%); box-shadow: 0 0 18px #41cbe7; transition: top .25s ease; }
+.depth-scale { position: relative; width: 54px; height: 100%; }
+.depth-scale b { position: absolute; left: 0; display: flex; align-items: center; gap: 5px; transform: translateY(-50%); font: 700 clamp(7px, .62vw, 10px)/1 "DM Sans"; letter-spacing: 0; color: rgba(220,247,252,.64); white-space: nowrap; }
+.depth-scale b i { width: 10px; height: 1px; background: rgba(220,247,252,.42); }
+.depth-scale b em { font-style: normal; }
 .center-callout, .result-card { position: absolute; inset: 50% auto auto 50%; width: min(80%, 650px); padding: 28px; text-align: center; transform: translate(-50%, -50%); border: 1px solid rgba(126,222,241,.24); border-radius: 20px; background: rgba(2,11,19,.82); backdrop-filter: blur(14px); box-shadow: 0 25px 80px rgba(0,0,0,.42); }
 .center-callout strong { display: block; margin-top: 8px; font: 800 clamp(54px, 9vw, 150px)/.9 "Barlow Condensed"; }
+.center-callout p { margin: 12px 0 0; color: #c6e5ec; font-size: clamp(12px, 1.1vw, 18px); }
+.center-callout--skip { border-color: rgba(255,225,104,.5); background: rgba(31,18,4,.86); box-shadow: 0 25px 90px rgba(0,0,0,.46), 0 0 42px rgba(255,177,61,.18); }
+.center-callout--skip span { color: #ffe168; }
+.center-callout--skip strong { color: #fff; font-size: clamp(42px, 6.4vw, 112px); text-shadow: 0 0 24px rgba(255,225,104,.42); }
 .center-callout--idle strong, .result-card strong { font-size: clamp(35px, 5vw, 82px); }
 .result-card strong { display: block; margin: 10px 0; font-family: "Barlow Condensed"; color: #ffe168; }
 .result-card p { margin: 0; color: #bdd4da; }
@@ -70,6 +81,13 @@ button { cursor: pointer; }
 .skill-perfect { z-index: 2; background: #ff4d5f; box-shadow: 0 0 14px #ff4d5f; }
 .skill-marker { z-index: 3; width: 5px; transform: translateX(-50%); border-radius: 99px; background: white; box-shadow: 0 0 10px white; }
 .impact-toast { position: absolute; left: 50%; top: 102px; padding: 8px 15px; transform: translateX(-50%); border-radius: 99px; color: #c6e5ec; background: rgba(2,11,19,.5); font-size: clamp(9px, .9vw, 14px); }
+.recent-subs { position: absolute; z-index: 19; top: 126px; right: 28px; width: min(360px, 34%); padding: 10px 12px; border: 1px solid rgba(121,221,243,.14); border-radius: 10px; color: rgba(230,251,255,.72); background: rgba(2,11,19,.36); backdrop-filter: blur(8px); pointer-events: none; }
+.recent-subs > span { display: block; margin-bottom: 6px; color: rgba(121,221,243,.72); font-size: clamp(8px, .65vw, 11px); font-weight: 700; text-transform: uppercase; letter-spacing: .12em; }
+.recent-subs small { color: rgba(168,200,208,.62); font-size: clamp(8px, .65vw, 11px); }
+.recent-subs ol { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.recent-subs li { display: grid; grid-template-columns: minmax(86px, .8fr) minmax(0, 1.2fr); gap: 10px; align-items: baseline; min-width: 0; }
+.recent-subs strong { overflow: hidden; color: rgba(255,225,104,.9); font: 800 clamp(13px, 1.1vw, 20px)/1 "Barlow Condensed"; text-overflow: ellipsis; white-space: nowrap; }
+.recent-subs em { color: rgba(198,229,236,.68); font-size: clamp(8px, .62vw, 10px); font-style: normal; line-height: 1.2; overflow-wrap: anywhere; }
 .control-strip { position: absolute; z-index: 20; left: 18px; right: 18px; bottom: 12px; display: flex; align-items: center; gap: 16px; color: #a9c0c6; pointer-events: none; }
 .control-strip > div:first-child { display: flex; flex-direction: column; min-width: 160px; }
 .control-strip strong { color: #fff; }
@@ -96,11 +114,16 @@ button { cursor: pointer; }
   .app-shell { padding: 0; }
   .stage { width: min(100%, calc(100vh * 16 / 9)); max-height: 100vh; border: 0; border-radius: 0; }
   .top-bar { padding: 14px; gap: 8px; }
+  .scoreboard { grid-template-columns: minmax(60px, auto) auto minmax(60px, auto); gap: 5px; padding: 5px; }
+  .scoreboard span { min-height: 34px; gap: 5px; padding: 4px 6px; }
   .hype-block { grid-template-columns: 1fr; gap: 5px; }
   .depth-meter { left: 12px; }
+  .depth-scale { width: 46px; }
   .vote-panel { right: 12px; bottom: 12px; }
   .skill-panel { bottom: 12px; }
   .control-strip { left: 12px; right: 12px; bottom: 8px; }
   .test-panel { top: 58px; right: 12px; }
   .test-panel summary { min-width: 94px; padding: 7px 10px; }
+  .recent-subs { top: 104px; right: 12px; width: min(300px, 52%); padding: 8px 10px; }
+  .recent-subs li { grid-template-columns: 1fr; gap: 2px; }
 }

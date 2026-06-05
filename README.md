@@ -10,6 +10,8 @@ Browsergame fuer einen Twitch-Streamer gegen den Chat. Ein Hype Train startet di
 
 Fuer eine rein visuelle Vorschau ohne Twitch kann die App mit gesetztem `VITE_DEMO_MODE=true` ueber `pnpm dev` gestartet werden.
 
+Das Bedienfeld **Testmodus** wird nur mit `VITE_TEST_MODE=true` angezeigt. Die Variable sollte in Produktion nicht gesetzt oder auf `false` gesetzt werden.
+
 ## Netlify-Konfiguration
 
 Folgende Umgebungsvariablen muessen fuer Functions gesetzt werden:

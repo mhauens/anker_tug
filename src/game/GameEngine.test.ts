@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   BALANCE,
+  giftSubCountForTotal,
+  giftSubPullForTotal,
   roundDepthForLevel,
   skillStrengthForLevel,
   visualDepthPercent,
+  votePullForLevel,
 } from "./balance";
 import { GameEngine } from "./GameEngine";
 
@@ -24,10 +27,10 @@ describe("GameEngine", () => {
   });
 
   it("keeps skillchecks balanced against regular subscriptions", () => {
-    expect(BALANCE.skillGoodSink).toBe(BALANCE.regularSubPull * 15);
-    expect(BALANCE.skillGreatSink).toBe(BALANCE.regularSubPull * 25);
-    expect(BALANCE.skillPerfectSink).toBe(BALANCE.regularSubPull * 40);
-    expect(BALANCE.skillPerfectSink).toBe(BALANCE.giftSubPullMaximum);
+    expect(BALANCE.skillGoodSink).toBe(BALANCE.regularSubPull * 5);
+    expect(BALANCE.skillGreatSink).toBe(BALANCE.regularSubPull * 10);
+    expect(BALANCE.skillPerfectSink).toBe(BALANCE.regularSubPull * 20);
+    expect(BALANCE.giftSubPullMaximum).toBeGreaterThan(BALANCE.skillPerfectSink);
   });
 
   it("makes early levels shorter and their skillchecks proportionally weaker", () => {
@@ -37,14 +40,27 @@ describe("GameEngine", () => {
     expect(skillStrengthForLevel(6)).toBe(1);
   });
 
+  it("keeps skillchecks demanding across levels", () => {
+    expect(BALANCE.skillBaseDurationSeconds).toBeLessThan(2.4);
+    expect(BALANCE.skillBaseGoodWidth).toBeLessThan(0.32);
+    expect(BALANCE.skillMinimumGoodWidth).toBeLessThan(0.16);
+    expect(BALANCE.skillSpeedPerLevel).toBeGreaterThan(0.08);
+  });
+
+  it("scales community voting impact with the current hype level", () => {
+    expect(votePullForLevel(1)).toBe(BALANCE.regularSubPull);
+    expect(votePullForLevel(6)).toBe(BALANCE.regularSubPull * 6);
+  });
+
   it("keeps large gift tiers visibly distinct", () => {
-    const pullFor = (total: number) =>
-      Math.min(
-        Math.sqrt(total) * BALANCE.giftSubPullSquareRoot,
-        BALANCE.giftSubPullMaximum,
-      );
-    expect(pullFor(100) - pullFor(20)).toBeGreaterThan(9);
-    expect(pullFor(200) - pullFor(100)).toBeGreaterThan(5);
+    expect(giftSubCountForTotal(1001)).toBe(1000);
+    expect(giftSubPullForTotal(6) - giftSubPullForTotal(5)).toBeGreaterThan(0.6);
+    expect(giftSubPullForTotal(7) - giftSubPullForTotal(6)).toBeGreaterThan(0.6);
+    expect(giftSubPullForTotal(8) - giftSubPullForTotal(7)).toBeGreaterThan(0.6);
+    expect(giftSubPullForTotal(20) - giftSubPullForTotal(5)).toBeGreaterThan(10);
+    expect(giftSubPullForTotal(200) - giftSubPullForTotal(100)).toBeGreaterThan(15);
+    expect(giftSubPullForTotal(1000) - giftSubPullForTotal(200)).toBeGreaterThan(400);
+    expect(giftSubPullForTotal(1001)).toBe(giftSubPullForTotal(1000));
   });
 
   it("applies natural sinking while connected", () => {
@@ -67,7 +83,7 @@ describe("GameEngine", () => {
     expect(engine.getState().winner).toBe("streamer");
   });
 
-  it("keeps only the latest vote per user and resolves pull after 30 seconds", () => {
+  it("keeps only the latest vote per user and resolves level-scaled pull after 30 seconds", () => {
     const engine = new GameEngine(() => 0);
     const control = new GameEngine(() => 0);
     startPlaying(engine);
@@ -81,9 +97,24 @@ describe("GameEngine", () => {
       control.tick(250, Date.now(), true);
     }
     expect(engine.getState().anchorDepth).toBeCloseTo(
-      control.getState().anchorDepth - BALANCE.regularSubPull,
+      control.getState().anchorDepth - votePullForLevel(1),
     );
     expect(engine.getState().voteSecondsRemaining).toBe(BALANCE.voteWindowSeconds);
+  });
+
+  it("uses stronger community voting in high hype levels", () => {
+    const engine = new GameEngine(() => 0);
+    const control = new GameEngine(() => 0);
+    startPlaying(engine, 6);
+    startPlaying(control, 6);
+    engine.castVote("user-a", "pull");
+    for (let index = 0; index < 120; index += 1) {
+      engine.tick(250, Date.now(), true);
+      control.tick(250, Date.now(), true);
+    }
+    expect(engine.getState().anchorDepth).toBeCloseTo(
+      control.getState().anchorDepth - votePullForLevel(6),
+    );
   });
 
   it("lets a large gift wave win an early-level round", () => {
@@ -100,7 +131,43 @@ describe("GameEngine", () => {
       (roundDepthForLevel(1) - state.anchorDepth);
     expect(state.chatWins).toBeGreaterThan(1);
     expect(state.phase).toBe("countdown");
-    expect(appliedPull).toBeCloseTo(BALANCE.giftSubPullMaximum);
+    expect(appliedPull).toBeCloseTo(giftSubPullForTotal(200));
+  });
+
+  it("reports instant chat wins when a sub burst carries surplus pull into the next round", () => {
+    const engine = new GameEngine(() => 0);
+    engine.startRound({
+      id: "burst-feedback",
+      level: 1,
+      progress: 0,
+      goal: 500,
+      expiresAt: future(),
+    });
+    engine.onGiftSubs(200);
+    const state = engine.getState();
+    expect(state.chatWins).toBeGreaterThan(1);
+    expect(state.anchorDepth).toBeGreaterThan(0);
+    expect(state.anchorDepth).toBeLessThan(roundDepthForLevel(1));
+    expect(state.chatSkipRounds).toBe(state.chatWins);
+    expect(state.lastAward).toEqual({ side: "chat", points: state.chatWins });
+    expect(state.lastImpact).toContain(`+${state.chatWins} Chat-Punkte`);
+  });
+
+  it("clears the chat skip notice after the countdown ends", () => {
+    const engine = new GameEngine(() => 0);
+    engine.startRound({
+      id: "skip-notice",
+      level: 1,
+      progress: 0,
+      goal: 500,
+      expiresAt: future(),
+    });
+    engine.onGiftSubs(200);
+    expect(engine.getState().chatSkipRounds).toBeGreaterThan(1);
+    for (let index = 0; index < 13; index += 1) engine.tick(250, Date.now(), true);
+    expect(engine.getState().phase).toBe("playing");
+    expect(engine.getState().chatSkipRounds).toBe(0);
+    expect(engine.getState().lastAward).toBeNull();
   });
 
   it("lets repeated regular subs win and restart early-level rounds", () => {
@@ -166,6 +233,7 @@ describe("GameEngine", () => {
       chatWins: 0,
       roundNumber: 2,
       anchorDepth: roundDepthForLevel(3),
+      lastAward: { side: "streamer", points: 2 },
     });
   });
 
@@ -268,10 +336,36 @@ describe("GameEngine", () => {
     expect(engine.getState().anchorDepth).toBeGreaterThan(before);
   });
 
-  it("lets a perfect skillcheck counter the largest gift wave", () => {
+  it("does not pull the anchor upward when a skillcheck is missed", () => {
+    const engine = new GameEngine(() => 0);
+    startPlaying(engine);
+    while (!engine.getState().skillCheck.active) {
+      engine.tick(100, Date.now(), true);
+    }
+    const before = engine.getState().anchorDepth;
+    engine.hitSkillCheck();
+    expect(engine.getState().skillCheck.result).toBe("miss");
+    expect(engine.getState().anchorDepth).toBe(before);
+  });
+
+  it("does not pull the anchor upward when a skillcheck times out", () => {
+    const engine = new GameEngine(() => 0);
+    startPlaying(engine);
+    while (!engine.getState().skillCheck.active) {
+      engine.tick(100, Date.now(), true);
+    }
+    const before = engine.getState().anchorDepth;
+    while (engine.getState().skillCheck.active) {
+      engine.tick(100, Date.now(), true);
+    }
+    expect(engine.getState().skillCheck.result).toBe("miss");
+    expect(engine.getState().anchorDepth).toBeGreaterThanOrEqual(before);
+  });
+
+  it("lets a perfect skillcheck recover after the largest gift wave", () => {
     const engine = new GameEngine(() => 0);
     startPlaying(engine, 6);
-    engine.onGiftSubs(200);
+    engine.onGiftSubs(1000);
     const afterGiftWave = engine.getState().anchorDepth;
     while (!engine.getState().skillCheck.active) {
       engine.tick(100, Date.now(), true);
@@ -281,8 +375,6 @@ describe("GameEngine", () => {
       engine.tick(20, Date.now(), true);
     }
     engine.hitSkillCheck();
-    expect(engine.getState().anchorDepth).toBeGreaterThan(
-      afterGiftWave + BALANCE.giftSubPullMaximum,
-    );
+    expect(engine.getState().anchorDepth).toBeGreaterThan(afterGiftWave);
   });
 });

@@ -1,4 +1,12 @@
-import { BALANCE, roundDepthForLevel, skillStrengthForLevel } from "./balance";
+import {
+  BALANCE,
+  formatMeters,
+  giftSubCountForTotal,
+  giftSubPullForTotal,
+  roundDepthForLevel,
+  skillStrengthForLevel,
+  votePullForLevel,
+} from "./balance";
 import type {
   GameState,
   HypeTrainSnapshot,
@@ -40,6 +48,8 @@ export function createInitialGameState(): GameState {
     roundNumber: 0,
     streamerWins: 0,
     chatWins: 0,
+    chatSkipRounds: 0,
+    lastAward: null,
     winner: null,
     countdownSeconds: BALANCE.countdownSeconds,
     skillCheck: emptySkillCheck(),
@@ -79,6 +89,8 @@ export class GameEngine {
       roundNumber: state.roundNumber ?? 1,
       streamerWins: state.streamerWins ?? 0,
       chatWins: state.chatWins ?? 0,
+      chatSkipRounds: state.chatSkipRounds ?? 0,
+      lastAward: state.lastAward ?? null,
     };
     this.votes.clear();
     this.voteElapsed = 0;
@@ -128,6 +140,7 @@ export class GameEngine {
         snapshot,
         `Level ${snapshot.level - 1} gehalten: Punkt für den Streamer`,
       );
+      this.state.lastAward = { side: "streamer", points: gainedLevels };
       this.emit();
       return;
     }
@@ -148,21 +161,28 @@ export class GameEngine {
 
   onRegularSub(isGift: boolean): void {
     if (!this.canApplyForces() || isGift) return;
-    this.applyChatPull(BALANCE.regularSubPull);
-    this.state.lastImpact = "Neuer Sub: kräftiger Zug";
+    const wins = this.applyChatPull(BALANCE.regularSubPull);
+    this.state.chatSkipRounds = wins > 1 ? wins : 0;
+    this.state.lastAward = wins > 0 ? { side: "chat", points: wins } : null;
+    this.state.lastImpact =
+      wins > 0
+        ? `Neuer Sub: ${formatMeters(BALANCE.regularSubPull)} hoch, +${wins} Chat-Punkt${wins === 1 ? "" : "e"}`
+        : `Neuer Sub: ${formatMeters(BALANCE.regularSubPull)} hoch`;
     this.emit();
   }
 
   onGiftSubs(total: number): void {
     if (!this.canApplyForces()) return;
-    const giftCount = Math.max(0, Math.floor(total));
+    const giftCount = giftSubCountForTotal(total);
     if (giftCount === 0) return;
-    const pull = Math.min(
-      Math.sqrt(giftCount) * BALANCE.giftSubPullSquareRoot,
-      BALANCE.giftSubPullMaximum,
-    );
-    this.applyChatPull(pull);
-    this.state.lastImpact = `${giftCount} Gift-Subs: ${pull.toFixed(1)} Zugkraft`;
+    const pull = giftSubPullForTotal(giftCount);
+    const wins = this.applyChatPull(pull);
+    this.state.chatSkipRounds = wins > 1 ? wins : 0;
+    this.state.lastAward = wins > 0 ? { side: "chat", points: wins } : null;
+    this.state.lastImpact =
+      wins > 0
+        ? `${giftCount} Gift-Subs: ${formatMeters(pull)} hoch, +${wins} Chat-Punkt${wins === 1 ? "" : "e"}`
+        : `${giftCount} Gift-Subs: ${formatMeters(pull)} hoch`;
     this.emit();
   }
 
@@ -197,9 +217,8 @@ export class GameEngine {
       this.state.skillCheck.result = "good";
       this.state.lastImpact = "Gutes Ankermanöver";
     } else {
-      this.applyChatPull(BALANCE.skillMissPull);
       this.state.skillCheck.result = "miss";
-      this.state.lastImpact = "Manöver verfehlt: Chat zieht";
+      this.state.lastImpact = "Manöver verfehlt: Der Anker bleibt stabil";
     }
 
     this.state.skillCheck.active = false;
@@ -231,6 +250,8 @@ export class GameEngine {
       if (this.countdownElapsed >= BALANCE.countdownSeconds) {
         this.state.phase = "playing";
         this.state.countdownSeconds = 0;
+        this.state.chatSkipRounds = 0;
+        this.state.lastAward = null;
         this.state.lastImpact = "Los! Chat gegen Anker";
       }
       this.emit();
@@ -271,13 +292,12 @@ export class GameEngine {
     this.state.skillCheck.progress = Math.min(1, this.skillElapsed / duration);
 
     if (this.state.skillCheck.progress >= 1) {
-      this.applyChatPull(BALANCE.skillMissPull);
       this.state.skillCheck = {
         ...this.state.skillCheck,
         active: false,
         result: "miss",
       };
-      this.state.lastImpact = "Skillcheck verpasst: Chat zieht";
+      this.state.lastImpact = "Skillcheck verpasst: Der Anker bleibt stabil";
       this.skillElapsed = 0;
       this.skillCooldownElapsed = 0;
     }
@@ -309,11 +329,20 @@ export class GameEngine {
     if (counts.pull === counts.lower) {
       this.state.lastImpact = "Voting unentschieden: Der Anker bleibt stabil";
     } else if (counts.pull > counts.lower) {
-      this.applyChatPull(BALANCE.regularSubPull);
-      this.state.lastImpact = "!ziehen gewinnt: Chat zieht wie ein Sub";
+      const pull = votePullForLevel(this.state.hypeLevel);
+      const wins = this.applyChatPull(pull);
+      this.state.chatSkipRounds = wins > 1 ? wins : 0;
+      this.state.lastAward = wins > 0 ? { side: "chat", points: wins } : null;
+      this.state.lastImpact =
+        wins > 0
+          ? `!ziehen gewinnt: ${formatMeters(pull)} hoch, +${wins} Chat-Punkt${wins === 1 ? "" : "e"}`
+          : `!ziehen gewinnt: ${formatMeters(pull)} hoch`;
     } else {
-      this.applyDepth(BALANCE.regularSubPull);
-      this.state.lastImpact = "!senken gewinnt: Streamer kontert wie ein Sub";
+      const pull = votePullForLevel(this.state.hypeLevel);
+      this.applyDepth(pull);
+      this.state.chatSkipRounds = 0;
+      this.state.lastAward = null;
+      this.state.lastImpact = `!senken gewinnt: Kami kontert ${formatMeters(pull)}`;
     }
 
     this.votes.clear();
@@ -334,18 +363,21 @@ export class GameEngine {
     );
   }
 
-  private applyChatPull(pull: number): void {
+  private applyChatPull(pull: number): number {
     let remaining = Math.max(0, pull);
+    let wins = 0;
     while (remaining > 0 && this.canApplyForces()) {
       if (remaining < this.state.anchorDepth) {
         this.state.anchorDepth -= remaining;
-        return;
+        return wins;
       }
 
       remaining -= this.state.anchorDepth;
       this.state.anchorDepth = 0;
       this.checkChatWin();
+      wins += 1;
     }
+    return wins;
   }
 
   private canApplyForces(): boolean {
@@ -387,6 +419,8 @@ export class GameEngine {
       winner: null,
       countdownSeconds: BALANCE.countdownSeconds,
       skillCheck: emptySkillCheck(),
+      chatSkipRounds: 0,
+      lastAward: null,
       lastImpact: impact,
     };
     this.votes.clear();
