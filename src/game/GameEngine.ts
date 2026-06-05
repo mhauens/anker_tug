@@ -138,7 +138,7 @@ export class GameEngine {
       this.state.streamerWins += gainedLevels;
       this.beginLevelRound(
         snapshot,
-        `Level ${snapshot.level - 1} gehalten: Punkt für den Streamer`,
+        `Level ${snapshot.level - 1} gehalten: Punkt fuer den Streamer`,
       );
       this.state.lastAward = { side: "streamer", points: gainedLevels };
       this.emit();

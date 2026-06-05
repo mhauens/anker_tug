@@ -237,6 +237,55 @@ describe("GameEngine", () => {
     });
   });
 
+  it("does not free the anchor automatically when Twitch advances the level", () => {
+    const engine = new GameEngine(() => 0);
+    startPlaying(engine);
+    for (let index = 0; index < 8; index += 1) engine.onRegularSub(false);
+
+    expect(engine.getState().anchorDepth).toBeGreaterThan(0);
+
+    engine.onHypeProgress({
+      id: "train-1",
+      level: 2,
+      progress: 10,
+      goal: 500,
+      expiresAt: future(),
+    });
+
+    expect(engine.getState()).toMatchObject({
+      phase: "countdown",
+      hypeLevel: 2,
+      streamerWins: 1,
+      chatWins: 0,
+      roundNumber: 2,
+      anchorDepth: roundDepthForLevel(2),
+      lastAward: { side: "streamer", points: 1 },
+    });
+  });
+
+  it("awards the streamer on level-up when the anchor is still below the surface", () => {
+    const engine = new GameEngine(() => 0);
+    startPlaying(engine);
+
+    engine.onHypeProgress({
+      id: "train-1",
+      level: 2,
+      progress: 10,
+      goal: 500,
+      expiresAt: future(),
+    });
+
+    expect(engine.getState()).toMatchObject({
+      phase: "countdown",
+      hypeLevel: 2,
+      streamerWins: 1,
+      chatWins: 0,
+      roundNumber: 2,
+      anchorDepth: roundDepthForLevel(2),
+      lastAward: { side: "streamer", points: 1 },
+    });
+  });
+
   it("does not regress when Twitch delivers Hype Train events out of order", () => {
     const engine = new GameEngine(() => 0);
     const startedAt = "2026-06-05T12:00:00Z";
