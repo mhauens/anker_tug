@@ -1,0 +1,23 @@
+HTTP/1.1 302 Found
+Date: Fri, 05 Jun 2026 13:01:08 GMT
+Content-Type: text/html; charset=utf-8
+Content-Length: 387
+Connection: keep-alive
+Server: nginx
+Access-Control-Allow-Origin: *
+Location: https://www.twitch.tv/login?client_id=tbpb6nfw8zgccwnsy9k62zufxxd7i3&redirect_params=client_id%3Dtbpb6nfw8zgccwnsy9k62zufxxd7i3%26redirect_uri%3Dhttp%253A%252F%252Flocalhost%253A8888%252Fapi%252Fauth%252Fcallback%26response_type%3Dcode%26scope%3Dchannel%253Aread%253Ahype_train%2Bchannel%253Aread%253Asubscriptions%2Buser%253Aread%253Achat%26state%3Dtest-state
+Set-Cookie: twilight-auth=; Path=/; Domain=twitch.tv; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure
+Set-Cookie: twilight-user=; Path=/; Domain=twitch.tv; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure
+Set-Cookie: twilight-user.dev=; Path=/; Domain=twitch.tv; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure
+Set-Cookie: twilight-user.spotlight=; Path=/; Domain=twitch.tv; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure
+Set-Cookie: twilight-user.desklight=; Path=/; Domain=twitch.tv; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure
+Set-Cookie: auth-token=; Path=/; Domain=twitch.tv; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure
+Set-Cookie: persistent=; Path=/; Domain=twitch.tv; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure
+Set-Cookie: login=; Path=/; Domain=twitch.tv; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure
+Set-Cookie: name=; Path=/; Domain=twitch.tv; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure
+Set-Cookie: sudo=; Path=/; Domain=twitch.tv; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure
+Set-Cookie: bits_sudo=; Path=/; Domain=twitch.tv; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure
+Set-Cookie: api_token=; Path=/; Domain=twitch.tv; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure
+Set-Cookie: _twitch_session_id=; Path=/; Domain=twitch.tv; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure
+X-Ctxlog-Logid: 1-6a22c894-3bae834953ccab4a413aa091
+

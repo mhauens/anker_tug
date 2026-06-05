@@ -1,0 +1,153 @@
+import type { ConnectionState, GameState } from "../game/types";
+import { visualDepthPercent } from "../game/balance";
+
+interface HudProps {
+  state: GameState;
+  connection: ConnectionState;
+}
+
+export function Hud({ state, connection }: HudProps) {
+  const hypePercent = state.hypeGoal
+    ? Math.min(100, (state.hypeProgress / state.hypeGoal) * 100)
+    : 0;
+  const matchWinner =
+    state.streamerWins === state.chatWins
+      ? "UNENTSCHIEDEN"
+      : state.streamerWins > state.chatWins
+        ? "STREAMER GEWINNT"
+        : "CHAT GEWINNT";
+  const totalVotes = state.voteCounts.pull + state.voteCounts.lower;
+  const pullPercent = totalVotes
+    ? (state.voteCounts.pull / totalVotes) * 100
+    : 50;
+
+  return (
+    <div className="hud">
+      <header className="top-bar">
+        <div className="brand-block">
+          <span className="eyebrow">Streamer vs. Chat</span>
+          <strong>ANCHOR TUG</strong>
+        </div>
+        <div className="scoreboard">
+          <span>STREAMER <strong>{state.streamerWins}</strong></span>
+          <b>RUNDE {state.roundNumber}</b>
+          <span>CHAT <strong>{state.chatWins}</strong></span>
+        </div>
+        <div className="hype-block">
+          <div className="hype-copy">
+            <span>Hype Train</span>
+            <strong>LEVEL {state.hypeLevel}</strong>
+          </div>
+          <div className="hype-track">
+            <i style={{ width: `${hypePercent}%` }} />
+          </div>
+        </div>
+        <div className={`connection connection--${connection}`}>
+          <i /> {connection === "connected" ? "Twitch live" : connection}
+        </div>
+      </header>
+
+      <aside className="depth-meter">
+        <span>OBERFLAECHE</span>
+        <div className="depth-track">
+          <i
+            style={{
+              top: `${visualDepthPercent(state.anchorDepth, state.hypeLevel)}%`,
+            }}
+          />
+        </div>
+        <span>MEERESGRUND</span>
+      </aside>
+
+      {state.phase === "countdown" && (
+        <div className="center-callout">
+          <span>Runde {state.roundNumber} beginnt</span>
+          <strong>{state.countdownSeconds || "LOS"}</strong>
+        </div>
+      )}
+
+      {state.phase === "idle" && (
+        <div className="center-callout center-callout--idle">
+          <span>Bereit zum Tauziehen</span>
+          <strong>WARTET AUF HYPE TRAIN</strong>
+        </div>
+      )}
+
+      {state.phase === "result" && (
+        <div className="result-card result-scoreboard">
+          <span>Hype Train beendet</span>
+          <strong>{matchWinner}</strong>
+          <div className="result-score">
+            <div>
+              <span>STREAMER</span>
+              <b>{state.streamerWins}</b>
+            </div>
+            <i>:</i>
+            <div>
+              <span>CHAT</span>
+              <b>{state.chatWins}</b>
+            </div>
+          </div>
+          <p>{state.lastImpact}</p>
+        </div>
+      )}
+
+      {state.phase === "playing" && (
+        <section className="vote-panel">
+          <div className="vote-heading">
+            <span>Community-Voting</span>
+            <strong>{state.voteSecondsRemaining}s</strong>
+          </div>
+          <div className="vote-commands">
+            <b>!SENKEN <em>{state.voteCounts.lower}</em></b>
+            <b>!ZIEHEN <em>{state.voteCounts.pull}</em></b>
+          </div>
+          <div className="vote-balance">
+            <i className="vote-balance__lower" style={{ width: `${100 - pullPercent}%` }} />
+            <i className="vote-balance__pull" style={{ width: `${pullPercent}%` }} />
+            <span style={{ left: `${pullPercent}%` }} />
+          </div>
+          <small>Gewinner bewegt den Anker mit der Kraft eines Subs</small>
+        </section>
+      )}
+
+      {state.phase === "playing" && state.skillCheck.active && (
+        <section className="skill-panel">
+          <div>
+            <span>ANKERMANOEVER</span>
+            <strong>LEERTASTE</strong>
+          </div>
+          <div className="skill-track">
+            <i
+              className="skill-good"
+              style={{
+                left: `${(state.skillCheck.targetCenter - state.skillCheck.goodWidth / 2) * 100}%`,
+                width: `${state.skillCheck.goodWidth * 100}%`,
+              }}
+            />
+            <i
+              className="skill-great"
+              style={{
+                left: `${(state.skillCheck.targetCenter - state.skillCheck.greatWidth / 2) * 100}%`,
+                width: `${state.skillCheck.greatWidth * 100}%`,
+              }}
+            />
+            <i
+              className="skill-perfect"
+              style={{
+                left: `${(state.skillCheck.targetCenter - state.skillCheck.perfectWidth / 2) * 100}%`,
+                width: `${state.skillCheck.perfectWidth * 100}%`,
+              }}
+            />
+            <i
+              className="skill-marker"
+              style={{ left: `${state.skillCheck.progress * 100}%` }}
+            />
+          </div>
+        </section>
+      )}
+
+      <div className="impact-toast">{state.lastImpact ?? "Der Anker wartet"}</div>
+    </div>
+  );
+}

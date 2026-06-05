@@ -1,0 +1,32 @@
+{
+  "name": "anchor-tug",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.33.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.functions.json && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.functions.json",
+    "netlify:dev": "netlify dev"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^10.7.9",
+    "@netlify/functions": "^5.3.0",
+    "phaser": "^4.1.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "latest",
+    "netlify-cli": "latest",
+    "typescript": "latest",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.8"
+  }
+}
