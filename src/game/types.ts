@@ -7,15 +7,34 @@ export type ConnectionState =
   | "connected"
   | "reconnecting";
 export type AwardSide = "streamer" | "chat";
+export type SkillCheckResult = "good" | "great" | "perfect" | "miss";
+export type SkillCheckVariantId =
+  | "steady"
+  | "countercurrent"
+  | "tideTurn"
+  | "splitCatch"
+  | "chainLock";
+
+export interface SkillCheckZone {
+  center: number;
+  width: number;
+  result: Exclude<SkillCheckResult, "miss">;
+  step?: number;
+}
 
 export interface SkillCheckState {
   active: boolean;
+  variantId: SkillCheckVariantId;
+  variantLabel: string;
+  instruction: string;
+  theme: string;
   progress: number;
-  targetCenter: number;
-  goodWidth: number;
-  greatWidth: number;
-  perfectWidth: number;
-  result: "good" | "great" | "perfect" | "miss" | null;
+  zones: SkillCheckZone[];
+  requiredHits: number;
+  completedHits: number;
+  hitResults: Exclude<SkillCheckResult, "miss">[];
+  activeStep: number;
+  result: SkillCheckResult | null;
 }
 
 export interface GameState {

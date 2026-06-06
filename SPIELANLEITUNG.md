@@ -56,16 +56,26 @@ Der Balancebalken zeigt waehrend der Abstimmung, zu welcher Seite das Voting ten
 
 ## Aktion des Streamers
 
-In regelmaessigen Abstaenden erscheint ein **Ankermanoever**. Die Zielbereiche sind bewusst knapp gehalten und werden in hoeheren Hype-Train-Leveln schneller und enger.
+In regelmaessigen Abstaenden erscheint ein **Ankermanoever**. Alle Manoever werden weiterhin nur mit der **Leertaste** gespielt, unterscheiden sich aber optisch und im Bewegungsmuster. Die Zielbereiche sind bewusst knapp gehalten und werden in hoeheren Hype-Train-Leveln schneller und enger.
 
 Der Streamer drueckt die **Leertaste**, waehrend der bewegliche Marker in einem Zielbereich liegt:
 
 - Grosser Zielbereich: gutes Manoever
 - Gelber Bereich: sehr gutes Manoever
 - Kleiner roter Bereich in der Mitte: perfektes Manoever
-- Ausserhalb des Zielbereichs oder nicht rechtzeitig gedrueckt: Fehlversuch; der Anker bleibt stabil
+- Ausserhalb des Zielbereichs oder nicht rechtzeitig gedrueckt: Fehlversuch; der Chat zieht den Anker ein kleines Stueck nach oben
 
 Ein besser getroffener Bereich senkt den Anker staerker. Gruen entspricht 5 Subs, Gelb 10 Subs und Perfekt 20 Subs. In hoeheren Hype-Train-Leveln werden die Skillchecks anspruchsvoller und gleichzeitig wirkungsvoller.
+
+### Skillcheck-Varianten
+
+- **Ruhiges Manoever**: Der klassische Zielbalken laeuft von links nach rechts.
+- **Gegenstrom**: Der Marker startet rechts und laeuft gegen die gewohnte Richtung.
+- **Tidenwende**: Der Marker laeuft hin und wieder zurueck.
+- **Signalbojen**: Zwei getrennte Zielinseln erscheinen; eine sichere Zone und eine riskantere Praezisionsboje.
+- **Kettenschloss**: Zwei Zielzonen muessen nacheinander getroffen werden. Erst wenn beide Kettenglieder sitzen, zaehlt das Manoever.
+
+In Level 1 erscheint vor allem das ruhige Manoever. Ab Level 2 kommen Gegenstrom und Signalbojen hinzu, ab Level 3 die Tidenwende und das Kettenschloss.
 
 ## Level und Balance
 

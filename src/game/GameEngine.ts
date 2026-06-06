@@ -14,26 +14,193 @@ import {
 import type {
   GameState,
   HypeTrainSnapshot,
+  SkillCheckResult,
   SkillCheckState,
+  SkillCheckVariantId,
+  SkillCheckZone,
   VoteCommand,
 } from "./types";
+
+interface SkillCheckVariant {
+  id: SkillCheckVariantId;
+  label: string;
+  instruction: string;
+  theme: string;
+  minLevel: number;
+  weight: number;
+}
+
+const SKILL_CHECK_VARIANTS: SkillCheckVariant[] = [
+  {
+    id: "steady",
+    label: "RUHIGES MANOEVER",
+    instruction: "LEERTASTE",
+    theme: "classic",
+    minLevel: 1,
+    weight: 7,
+  },
+  {
+    id: "countercurrent",
+    label: "GEGENSTROM",
+    instruction: "ABFANGEN",
+    theme: "current",
+    minLevel: 2,
+    weight: 3,
+  },
+  {
+    id: "splitCatch",
+    label: "SIGNALBOJEN",
+    instruction: "FENSTER",
+    theme: "beacon",
+    minLevel: 2,
+    weight: 2,
+  },
+  {
+    id: "tideTurn",
+    label: "TIDENWENDE",
+    instruction: "WENDEPUNKT",
+    theme: "tide",
+    minLevel: 3,
+    weight: 2,
+  },
+  {
+    id: "chainLock",
+    label: "KETTENSCHLOSS",
+    instruction: "KETTE 1/2",
+    theme: "chain",
+    minLevel: 3,
+    weight: 2,
+  },
+];
+
+const SKILL_RESULT_RANK: Record<Exclude<SkillCheckResult, "miss">, number> = {
+  good: 1,
+  great: 2,
+  perfect: 3,
+};
 
 function emptyVotes(): Record<VoteCommand, number> {
   return { pull: 0, lower: 0 };
 }
 
 function emptySkillCheck(): SkillCheckState {
+  const goodWidth = BALANCE.skillBaseGoodWidth;
+  const targetCenter = 0.5;
   return {
     active: false,
+    variantId: "steady",
+    variantLabel: "RUHIGES MANOEVER",
+    instruction: "LEERTASTE",
+    theme: "classic",
     progress: 0,
-    targetCenter: 0.5,
-    goodWidth: BALANCE.skillBaseGoodWidth,
-    greatWidth:
-      BALANCE.skillBaseGoodWidth * BALANCE.skillGreatWidthFactor,
-    perfectWidth:
-      BALANCE.skillBaseGoodWidth * BALANCE.skillPerfectWidthFactor,
+    zones: standardSkillZones(targetCenter, goodWidth),
+    requiredHits: 1,
+    completedHits: 0,
+    hitResults: [],
+    activeStep: 0,
     result: null,
   };
+}
+
+function standardSkillZones(
+  center: number,
+  goodWidth: number,
+): SkillCheckZone[] {
+  return [
+    { center, width: goodWidth, result: "good" },
+    {
+      center,
+      width: goodWidth * BALANCE.skillGreatWidthFactor,
+      result: "great",
+    },
+    {
+      center,
+      width: goodWidth * BALANCE.skillPerfectWidthFactor,
+      result: "perfect",
+    },
+  ];
+}
+
+function normalizeSkillCheck(input: SkillCheckState): SkillCheckState {
+  const legacy = input as Partial<SkillCheckState> & {
+    targetCenter?: number;
+    goodWidth?: number;
+    greatWidth?: number;
+    perfectWidth?: number;
+  };
+  const fallback = emptySkillCheck();
+  const center = legacy.targetCenter ?? fallback.zones[0].center;
+  const goodWidth = legacy.goodWidth ?? fallback.zones[0].width;
+  const legacyZones: SkillCheckZone[] = [
+    { center, width: goodWidth, result: "good" },
+    {
+      center,
+      width: legacy.greatWidth ?? goodWidth * BALANCE.skillGreatWidthFactor,
+      result: "great",
+    },
+    {
+      center,
+      width:
+        legacy.perfectWidth ?? goodWidth * BALANCE.skillPerfectWidthFactor,
+      result: "perfect",
+    },
+  ];
+
+  return {
+    ...fallback,
+    ...structuredClone(input),
+    variantId: input.variantId ?? fallback.variantId,
+    variantLabel: input.variantLabel ?? fallback.variantLabel,
+    instruction: input.instruction ?? fallback.instruction,
+    theme: input.theme ?? fallback.theme,
+    zones: input.zones?.length ? structuredClone(input.zones) : legacyZones,
+    requiredHits: input.requiredHits ?? fallback.requiredHits,
+    completedHits: input.completedHits ?? fallback.completedHits,
+    hitResults: input.hitResults ? structuredClone(input.hitResults) : [],
+    activeStep: input.activeStep ?? fallback.activeStep,
+    result: input.result ?? null,
+  };
+}
+
+function progressForVariant(
+  variantId: SkillCheckVariantId,
+  normalizedElapsed: number,
+): number {
+  const progress = Math.max(0, Math.min(1, normalizedElapsed));
+  if (variantId === "countercurrent") return 1 - progress;
+  if (variantId === "tideTurn") {
+    return progress <= 0.5 ? progress * 2 : (1 - progress) * 2;
+  }
+  return progress;
+}
+
+function bestSkillHit(
+  progress: number,
+  zones: SkillCheckZone[],
+  activeStep?: number,
+): Exclude<SkillCheckResult, "miss"> | null {
+  let best: Exclude<SkillCheckResult, "miss"> | null = null;
+  for (const zone of zones) {
+    if (activeStep !== undefined && zone.step !== undefined && zone.step !== activeStep) {
+      continue;
+    }
+    const distance = Math.abs(progress - zone.center);
+    if (distance > zone.width / 2) continue;
+    if (!best || SKILL_RESULT_RANK[zone.result] > SKILL_RESULT_RANK[best]) {
+      best = zone.result;
+    }
+  }
+  return best;
+}
+
+function weakestSkillResult(
+  results: Exclude<SkillCheckResult, "miss">[],
+): Exclude<SkillCheckResult, "miss"> {
+  return results.reduce((weakest, result) => {
+    return SKILL_RESULT_RANK[result] < SKILL_RESULT_RANK[weakest]
+      ? result
+      : weakest;
+  }, results[0] ?? "good");
 }
 
 export function createInitialGameState(): GameState {
@@ -96,6 +263,7 @@ export class GameEngine {
       chatWins: state.chatWins ?? 0,
       chatSkipRounds: state.chatSkipRounds ?? 0,
       lastAward: state.lastAward ?? null,
+      skillCheck: normalizeSkillCheck(state.skillCheck),
     };
     this.votes.clear();
     this.voteElapsed = 0;
@@ -150,20 +318,32 @@ export class GameEngine {
       // Each skipped level is its own round: a big sub bomb that vaults past
       // several levels and frees the anchor earns the chat a point per level,
       // mirroring how the streamer scores a point per level held.
-      if (reachedSurface) this.state.chatWins += gainedLevels;
-      else this.state.streamerWins += gainedLevels;
-
-      this.beginLevelRound(
-        snapshot,
-        reachedSurface
-          ? `Hype Train +${Math.round(points)} Punkte: Anker frei${gainedLevels > 1 ? ` (${gainedLevels} Level)` : ""}`
-          : `Level ${snapshot.level - 1} gehalten: Punkt fuer den Streamer`,
-      );
+      if (reachedSurface) {
+        // Chat freed the anchor: award the point(s) and drop a fresh anchor from
+        // the seabed for the next round.
+        this.state.chatWins += gainedLevels;
+        this.beginLevelRound(
+          snapshot,
+          `Hype Train +${Math.round(points)} Punkte: Anker frei${gainedLevels > 1 ? ` (${gainedLevels} Level)` : ""}`,
+        );
+        this.state.lastAward = { side: "chat", points: gainedLevels };
+      } else {
+        // Streamer held the level: award the point(s) but carry the anchor's
+        // height (after this pull) into the deeper level instead of snapping
+        // back to the seabed, so the tug-of-war stays continuous — especially on
+        // the fast early levels where rounds would otherwise flash by.
+        this.state.streamerWins += gainedLevels;
+        const oldDepth = roundDepthForLevel(this.state.hypeLevel);
+        const fraction =
+          oldDepth > 0 ? Math.max(0, this.state.anchorDepth - pull) / oldDepth : 1;
+        this.beginLevelRound(
+          snapshot,
+          `Level ${snapshot.level - 1} gehalten: Punkt fuer den Streamer`,
+          fraction * roundDepthForLevel(snapshot.level),
+        );
+        this.state.lastAward = { side: "streamer", points: gainedLevels };
+      }
       if (gainedLevels > 1) this.state.roundNumber += gainedLevels - 1;
-      this.state.lastAward = {
-        side: reachedSurface ? "chat" : "streamer",
-        points: gainedLevels,
-      };
       this.emit();
       return;
     }
@@ -232,31 +412,39 @@ export class GameEngine {
   hitSkillCheck(): void {
     if (!this.canApplyForces() || !this.state.skillCheck.active) return;
 
-    const distance = Math.abs(
-      this.state.skillCheck.progress - this.state.skillCheck.targetCenter,
+    const result = bestSkillHit(
+      this.state.skillCheck.progress,
+      this.state.skillCheck.zones,
+      this.state.skillCheck.activeStep,
     );
-    const perfect = distance <= this.state.skillCheck.perfectWidth / 2;
-    const great = distance <= this.state.skillCheck.greatWidth / 2;
-    const good = distance <= this.state.skillCheck.goodWidth / 2;
     const skillStrength = skillStrengthForLevel(this.state.hypeLevel);
 
-    if (perfect) {
-      this.applyDepth(BALANCE.skillPerfectSink * skillStrength);
-      this.state.skillCheck.result = "perfect";
-      this.state.lastImpact = "Perfektes Ankermanöver";
-    } else if (great) {
-      this.applyDepth(BALANCE.skillGreatSink * skillStrength);
-      this.state.skillCheck.result = "great";
-      this.state.lastImpact = "Sehr gutes Ankermanoever";
-    } else if (good) {
-      this.applyDepth(BALANCE.skillGoodSink * skillStrength);
-      this.state.skillCheck.result = "good";
-      this.state.lastImpact = "Gutes Ankermanöver";
-    } else {
-      this.state.skillCheck.result = "miss";
-      this.state.lastImpact = "Manöver verfehlt: Der Anker bleibt stabil";
+    if (!result) {
+      this.finishMissedSkillCheck("Manoever verfehlt");
+      this.emit();
+      return;
     }
 
+    const hitResults = [...this.state.skillCheck.hitResults, result];
+    if (hitResults.length < this.state.skillCheck.requiredHits) {
+      const completedHits = hitResults.length;
+      this.state.skillCheck = {
+        ...this.state.skillCheck,
+        completedHits,
+        hitResults,
+        activeStep: completedHits,
+        instruction: `KETTE ${completedHits + 1}/${this.state.skillCheck.requiredHits}`,
+        progress: progressForVariant(this.state.skillCheck.variantId, 0),
+      };
+      this.skillElapsed = 0;
+      this.state.lastImpact = `Kettenschloss ${completedHits}/${this.state.skillCheck.requiredHits} verriegelt`;
+      this.emit();
+      return;
+    }
+
+    this.applySkillCheckResult(weakestSkillResult(hitResults), skillStrength);
+    this.state.skillCheck.completedHits = hitResults.length;
+    this.state.skillCheck.hitResults = hitResults;
     this.state.skillCheck.active = false;
     this.skillElapsed = 0;
     this.skillCooldownElapsed = 0;
@@ -324,40 +512,165 @@ export class GameEngine {
     this.skillElapsed += deltaSeconds;
     const speedMultiplier =
       1 + (this.state.hypeLevel - 1) * BALANCE.skillSpeedPerLevel;
-    const duration = BALANCE.skillBaseDurationSeconds / speedMultiplier;
-    this.state.skillCheck.progress = Math.min(1, this.skillElapsed / duration);
+    const duration =
+      this.state.skillCheck.variantId === "tideTurn"
+        ? (BALANCE.skillBaseDurationSeconds * 1.18) / speedMultiplier
+        : BALANCE.skillBaseDurationSeconds / speedMultiplier;
+    const elapsed = Math.min(1, this.skillElapsed / duration);
+    this.state.skillCheck.progress = progressForVariant(
+      this.state.skillCheck.variantId,
+      elapsed,
+    );
 
-    if (this.state.skillCheck.progress >= 1) {
-      this.state.skillCheck = {
-        ...this.state.skillCheck,
-        active: false,
-        result: "miss",
-      };
-      this.state.lastImpact = "Skillcheck verpasst: Der Anker bleibt stabil";
-      this.skillElapsed = 0;
-      this.skillCooldownElapsed = 0;
+    if (elapsed >= 1) {
+      this.finishMissedSkillCheck("Skillcheck verpasst");
     }
   }
 
   private beginSkillCheck(): void {
+    const variant = this.selectSkillCheckVariant();
     const goodWidth = Math.max(
       BALANCE.skillMinimumGoodWidth,
       BALANCE.skillBaseGoodWidth -
         (this.state.hypeLevel - 1) * BALANCE.skillWidthLossPerLevel,
     );
-    const margin = goodWidth / 2 + 0.08;
+    const zones = this.createSkillZones(variant.id, goodWidth);
     this.state.skillCheck = {
       active: true,
-      progress: 0,
-      targetCenter: margin + this.random() * (1 - margin * 2),
-      goodWidth,
-      greatWidth: goodWidth * BALANCE.skillGreatWidthFactor,
-      perfectWidth: goodWidth * BALANCE.skillPerfectWidthFactor,
+      variantId: variant.id,
+      variantLabel: variant.label,
+      instruction: variant.instruction,
+      theme: variant.theme,
+      progress: progressForVariant(variant.id, 0),
+      zones,
+      requiredHits: variant.id === "chainLock" ? 2 : 1,
+      completedHits: 0,
+      hitResults: [],
+      activeStep: 0,
       result: null,
     };
     this.skillElapsed = 0;
     this.skillCooldownElapsed = 0;
-    this.state.lastImpact = "Skillcheck: Leertaste im Zielbereich";
+    this.state.lastImpact = `${variant.label}: ${variant.instruction}`;
+  }
+
+  private selectSkillCheckVariant(): SkillCheckVariant {
+    const available = SKILL_CHECK_VARIANTS.filter(
+      (variant) => this.state.hypeLevel >= variant.minLevel,
+    );
+    const totalWeight = available.reduce(
+      (sum, variant) => sum + variant.weight,
+      0,
+    );
+    let pick = this.random() * totalWeight;
+    for (const variant of available) {
+      pick -= variant.weight;
+      if (pick <= 0) return variant;
+    }
+    return available[available.length - 1] ?? SKILL_CHECK_VARIANTS[0];
+  }
+
+  private createSkillZones(
+    variantId: SkillCheckVariantId,
+    goodWidth: number,
+  ): SkillCheckZone[] {
+    if (variantId === "splitCatch") return this.createSplitCatchZones(goodWidth);
+    if (variantId === "chainLock") return this.createChainLockZones(goodWidth);
+
+    const center = this.randomCenter(goodWidth);
+    return standardSkillZones(center, goodWidth);
+  }
+
+  private createSplitCatchZones(goodWidth: number): SkillCheckZone[] {
+    const safeWidth = goodWidth * 0.78;
+    const greatWidth = goodWidth * 0.58;
+    const perfectWidth = goodWidth * BALANCE.skillPerfectWidthFactor;
+    const safeCenter = this.randomInRange(
+      safeWidth / 2 + 0.08,
+      0.43 - safeWidth / 2,
+    );
+    const precisionCenter = this.randomInRange(
+      0.57 + greatWidth / 2,
+      1 - greatWidth / 2 - 0.08,
+    );
+
+    return [
+      { center: safeCenter, width: safeWidth, result: "good" },
+      { center: precisionCenter, width: greatWidth, result: "great" },
+      { center: precisionCenter, width: perfectWidth, result: "perfect" },
+    ];
+  }
+
+  private createChainLockZones(goodWidth: number): SkillCheckZone[] {
+    const chainWidth = goodWidth * 0.82;
+    const firstCenter = this.randomInRange(
+      chainWidth / 2 + 0.08,
+      0.44 - chainWidth / 2,
+    );
+    const secondCenter = this.randomInRange(
+      0.56 + chainWidth / 2,
+      1 - chainWidth / 2 - 0.08,
+    );
+
+    return [
+      ...standardSkillZones(firstCenter, chainWidth).map((zone) => ({
+        ...zone,
+        step: 0,
+      })),
+      ...standardSkillZones(secondCenter, chainWidth).map((zone) => ({
+        ...zone,
+        step: 1,
+      })),
+    ];
+  }
+
+  private randomCenter(width: number): number {
+    const margin = width / 2 + 0.08;
+    return this.randomInRange(margin, 1 - margin);
+  }
+
+  private randomInRange(min: number, max: number): number {
+    if (max <= min) return (min + max) / 2;
+    return min + this.random() * (max - min);
+  }
+
+  private applySkillCheckResult(
+    result: Exclude<SkillCheckResult, "miss">,
+    skillStrength: number,
+  ): void {
+    if (result === "perfect") {
+      this.applyDepth(BALANCE.skillPerfectSink * skillStrength);
+      this.state.skillCheck.result = "perfect";
+      this.state.lastImpact = "Perfektes Ankermanoever";
+    } else if (result === "great") {
+      this.applyDepth(BALANCE.skillGreatSink * skillStrength);
+      this.state.skillCheck.result = "great";
+      this.state.lastImpact = "Sehr gutes Ankermanoever";
+    } else {
+      this.applyDepth(BALANCE.skillGoodSink * skillStrength);
+      this.state.skillCheck.result = "good";
+      this.state.lastImpact = "Gutes Ankermanoever";
+    }
+  }
+
+  private finishMissedSkillCheck(reason: string): void {
+    const pull =
+      BALANCE.skillMissPull * skillStrengthForLevel(this.state.hypeLevel);
+    this.state.skillCheck = {
+      ...this.state.skillCheck,
+      active: false,
+      result: "miss",
+    };
+    this.skillElapsed = 0;
+    this.skillCooldownElapsed = 0;
+
+    const wins = this.applyChatPull(pull);
+    this.state.chatSkipRounds = wins > 1 ? wins : 0;
+    this.state.lastAward = wins > 0 ? { side: "chat", points: wins } : null;
+    this.state.lastImpact =
+      wins > 0
+        ? `${reason}: ${formatMeters(pull)} hoch, +${wins} Chat-Punkt${wins === 1 ? "" : "e"}`
+        : `${reason}: Chat zieht ${formatMeters(pull)} hoch`;
   }
 
   private resolveVote(): void {
@@ -460,7 +773,11 @@ export class GameEngine {
     );
   }
 
-  private beginLevelRound(snapshot: HypeTrainSnapshot, impact: string): void {
+  private beginLevelRound(
+    snapshot: HypeTrainSnapshot,
+    impact: string,
+    startDepth?: number,
+  ): void {
     this.state = {
       ...this.state,
       phase: "countdown",
@@ -468,7 +785,7 @@ export class GameEngine {
       trainStartedAt:
         snapshot.startedAt ??
         (this.state.trainId === snapshot.id ? this.state.trainStartedAt : null),
-      anchorDepth: roundDepthForLevel(snapshot.level),
+      anchorDepth: startDepth ?? roundDepthForLevel(snapshot.level),
       hypeLevel: Math.max(1, snapshot.level),
       hypeTotal: snapshot.total ?? this.estimatedTotalPoints(snapshot),
       hypeProgress: snapshot.progress,

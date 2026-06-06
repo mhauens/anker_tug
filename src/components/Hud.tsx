@@ -34,6 +34,12 @@ export function Hud({ state, connection }: HudProps) {
         state.lastAward.points === 1 ? "Punkt" : "Punkte"
       } für ${state.lastAward.side === "streamer" ? "Kami" : "Chat"}`
     : null;
+  const zoneStepClass = (step?: number) => {
+    if (step === undefined) return "";
+    if (step < state.skillCheck.completedHits) return " skill-zone--locked";
+    if (step === state.skillCheck.activeStep) return " skill-zone--active";
+    return " skill-zone--queued";
+  };
 
   return (
     <div className="hud">
@@ -160,33 +166,24 @@ export function Hud({ state, connection }: HudProps) {
       )}
 
       {state.phase === "playing" && state.skillCheck.active && (
-        <section className="skill-panel">
+        <section
+          className={`skill-panel skill-panel--${state.skillCheck.variantId} skill-panel--${state.skillCheck.theme}`}
+        >
           <div>
-            <span>ANKERMANOEVER</span>
-            <strong>LEERTASTE</strong>
+            <span>{state.skillCheck.variantLabel}</span>
+            <strong>{state.skillCheck.instruction}</strong>
           </div>
           <div className="skill-track">
-            <i
-              className="skill-good"
-              style={{
-                left: `${(state.skillCheck.targetCenter - state.skillCheck.goodWidth / 2) * 100}%`,
-                width: `${state.skillCheck.goodWidth * 100}%`,
-              }}
-            />
-            <i
-              className="skill-great"
-              style={{
-                left: `${(state.skillCheck.targetCenter - state.skillCheck.greatWidth / 2) * 100}%`,
-                width: `${state.skillCheck.greatWidth * 100}%`,
-              }}
-            />
-            <i
-              className="skill-perfect"
-              style={{
-                left: `${(state.skillCheck.targetCenter - state.skillCheck.perfectWidth / 2) * 100}%`,
-                width: `${state.skillCheck.perfectWidth * 100}%`,
-              }}
-            />
+            {state.skillCheck.zones.map((zone, index) => (
+              <i
+                key={`${zone.result}-${index}`}
+                className={`skill-zone skill-${zone.result}${zoneStepClass(zone.step)}`}
+                style={{
+                  left: `${(zone.center - zone.width / 2) * 100}%`,
+                  width: `${zone.width * 100}%`,
+                }}
+              />
+            ))}
             <i
               className="skill-marker"
               style={{ left: `${state.skillCheck.progress * 100}%` }}

@@ -13,6 +13,7 @@ import {
   votePullForLevel,
 } from "./balance";
 import { GameEngine } from "./GameEngine";
+import type { GameState, SkillCheckResult } from "./types";
 
 const future = () => new Date(Date.now() + 60_000).toISOString();
 
@@ -20,6 +21,47 @@ function startPlaying(engine: GameEngine, level = 1): void {
   engine.startRound({ id: "train-1", level, progress: 0, goal: 500, expiresAt: future() });
   for (let index = 0; index < 13; index += 1) engine.tick(250, Date.now(), true);
   expect(engine.getState().phase).toBe("playing");
+}
+
+function sequenceRandom(values: readonly number[]): () => number {
+  let index = 0;
+  return () => values[index++] ?? values[values.length - 1] ?? 0;
+}
+
+function waitForSkillCheck(engine: GameEngine): void {
+  while (!engine.getState().skillCheck.active) {
+    engine.tick(100, Date.now(), true);
+  }
+}
+
+function hitZone(engine: GameEngine, result: Exclude<SkillCheckResult, "miss">): void {
+  const zone = engine
+    .getState()
+    .skillCheck.zones.find((candidate) => candidate.result === result);
+  expect(zone).toBeDefined();
+  while (engine.getState().skillCheck.progress < zone!.center) {
+    engine.tick(20, Date.now(), true);
+  }
+  engine.hitSkillCheck();
+}
+
+function hitActiveZone(
+  engine: GameEngine,
+  result: Exclude<SkillCheckResult, "miss">,
+): void {
+  const skillCheck = engine.getState().skillCheck;
+  const zone = skillCheck.zones.find((candidate) => {
+    return candidate.result === result && candidate.step === skillCheck.activeStep;
+  });
+  expect(zone).toBeDefined();
+  const target =
+    result === "perfect"
+      ? zone!.center
+      : zone!.center - zone!.width / 2 + 0.01;
+  while (engine.getState().skillCheck.progress < target) {
+    engine.tick(20, Date.now(), true);
+  }
+  engine.hitSkillCheck();
 }
 
 describe("GameEngine", () => {
@@ -410,9 +452,38 @@ describe("GameEngine", () => {
       streamerWins: 1,
       chatWins: 0,
       roundNumber: 2,
-      anchorDepth: roundDepthForLevel(2),
       lastAward: { side: "streamer", points: 1 },
     });
+    // The anchor carries its height into the new level instead of snapping back
+    // to the seabed, so the tug-of-war stays continuous.
+    expect(engine.getState().anchorDepth).toBeLessThan(roundDepthForLevel(2));
+    expect(engine.getState().anchorDepth).toBeGreaterThan(0);
+  });
+
+  it("carries the anchor's relative height across a held level-up", () => {
+    const engine = new GameEngine(() => 0);
+    startPlaying(engine);
+
+    // Drift down to a known fraction of the level-1 depth.
+    for (let index = 0; index < 80; index += 1) engine.tick(250, Date.now(), true);
+    const beforeDepth = engine.getState().anchorDepth;
+    const beforeFraction = beforeDepth / roundDepthForLevel(1);
+
+    // A level-up that the streamer holds (no points -> no extra pull).
+    engine.onHypeProgress({
+      id: "train-1",
+      level: 2,
+      total: engine.getState().hypeTotal,
+      progress: 0,
+      goal: 1800,
+      expiresAt: future(),
+    });
+
+    expect(engine.getState().streamerWins).toBe(1);
+    // Same relative height, just rescaled to the deeper level.
+    expect(engine.getState().anchorDepth).toBeCloseTo(
+      beforeFraction * roundDepthForLevel(2),
+    );
   });
 
   it("does not regress when Twitch delivers Hype Train events out of order", () => {
@@ -500,12 +571,49 @@ describe("GameEngine", () => {
   it("creates a level-scaled skillcheck and applies a perfect hit", () => {
     const engine = new GameEngine(() => 0);
     startPlaying(engine);
-    while (!engine.getState().skillCheck.active) {
-      engine.tick(100, Date.now(), true);
-    }
+    waitForSkillCheck(engine);
     const active = engine.getState().skillCheck;
     expect(active.active).toBe(true);
-    while (engine.getState().skillCheck.progress < active.targetCenter) {
+    const before = engine.getState().anchorDepth;
+    hitZone(engine, "perfect");
+    expect(engine.getState().skillCheck.result).toBe("perfect");
+    expect(engine.getState().anchorDepth).toBeGreaterThan(before);
+  });
+
+  it("creates valid skill zones for every unlocked variant", () => {
+    const cases = [
+      { level: 1, random: [0.99, 0.5], variant: "steady" },
+      { level: 2, random: [0.7, 0.5], variant: "countercurrent" },
+      { level: 2, random: [0.9, 0.2, 0.8], variant: "splitCatch" },
+      { level: 3, random: [0.82, 0.5], variant: "tideTurn" },
+      { level: 3, random: [0.95, 0.2, 0.8], variant: "chainLock" },
+    ] as const;
+
+    for (const testCase of cases) {
+      const engine = new GameEngine(sequenceRandom(testCase.random));
+      startPlaying(engine, testCase.level);
+      waitForSkillCheck(engine);
+      const skillCheck = engine.getState().skillCheck;
+      expect(skillCheck.variantId).toBe(testCase.variant);
+      expect(skillCheck.zones.length).toBeGreaterThanOrEqual(3);
+      for (const zone of skillCheck.zones) {
+        expect(zone.center - zone.width / 2).toBeGreaterThanOrEqual(0);
+        expect(zone.center + zone.width / 2).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it("lets countercurrent skillchecks score while the marker runs backward", () => {
+    const engine = new GameEngine(sequenceRandom([0.7, 0.5]));
+    startPlaying(engine, 2);
+    waitForSkillCheck(engine);
+    const active = engine.getState().skillCheck;
+    const perfect = active.zones.find((zone) => zone.result === "perfect");
+    expect(active.variantId).toBe("countercurrent");
+    expect(active.progress).toBe(1);
+    expect(perfect).toBeDefined();
+
+    while (engine.getState().skillCheck.progress > perfect!.center) {
       engine.tick(20, Date.now(), true);
     }
     const before = engine.getState().anchorDepth;
@@ -514,30 +622,159 @@ describe("GameEngine", () => {
     expect(engine.getState().anchorDepth).toBeGreaterThan(before);
   });
 
-  it("does not pull the anchor upward when a skillcheck is missed", () => {
-    const engine = new GameEngine(() => 0);
-    startPlaying(engine);
-    while (!engine.getState().skillCheck.active) {
+  it("moves tide-turn skillchecks out and back before timing out", () => {
+    const engine = new GameEngine(sequenceRandom([0.82, 0.5]));
+    startPlaying(engine, 3);
+    waitForSkillCheck(engine);
+    expect(engine.getState().skillCheck.variantId).toBe("tideTurn");
+    expect(engine.getState().skillCheck.progress).toBe(0);
+
+    while (
+      engine.getState().skillCheck.active &&
+      engine.getState().skillCheck.progress < 0.85
+    ) {
       engine.tick(100, Date.now(), true);
     }
+    expect(engine.getState().skillCheck.progress).toBeGreaterThanOrEqual(0.85);
+
+    while (
+      engine.getState().skillCheck.active &&
+      engine.getState().skillCheck.progress > 0.3
+    ) {
+      engine.tick(100, Date.now(), true);
+    }
+    expect(engine.getState().skillCheck.progress).toBeLessThanOrEqual(0.3);
+  });
+
+  it("creates separated split-catch windows and can score the precision buoy", () => {
+    const engine = new GameEngine(sequenceRandom([0.9, 0.2, 0.8]));
+    startPlaying(engine, 2);
+    waitForSkillCheck(engine);
+    const active = engine.getState().skillCheck;
+    const good = active.zones.find((zone) => zone.result === "good");
+    const perfect = active.zones.find((zone) => zone.result === "perfect");
+    expect(active.variantId).toBe("splitCatch");
+    expect(good).toBeDefined();
+    expect(perfect).toBeDefined();
+    expect(perfect!.center - good!.center).toBeGreaterThan(good!.width / 2);
+
+    const before = engine.getState().anchorDepth;
+    hitZone(engine, "perfect");
+    expect(engine.getState().skillCheck.result).toBe("perfect");
+    expect(engine.getState().anchorDepth).toBeGreaterThan(before);
+  });
+
+  it("unlocks chain-lock only on level 3 and higher", () => {
+    const levelTwo = new GameEngine(sequenceRandom([0.99, 0.2, 0.8]));
+    startPlaying(levelTwo, 2);
+    waitForSkillCheck(levelTwo);
+    expect(levelTwo.getState().skillCheck.variantId).toBe("splitCatch");
+
+    const levelThree = new GameEngine(sequenceRandom([0.95, 0.2, 0.8]));
+    startPlaying(levelThree, 3);
+    waitForSkillCheck(levelThree);
+    expect(levelThree.getState().skillCheck.variantId).toBe("chainLock");
+  });
+
+  it("keeps chain-lock active after the first required hit", () => {
+    const engine = new GameEngine(sequenceRandom([0.95, 0.2, 0.8]));
+    startPlaying(engine, 3);
+    waitForSkillCheck(engine);
+    expect(engine.getState().skillCheck).toMatchObject({
+      variantId: "chainLock",
+      requiredHits: 2,
+      completedHits: 0,
+      activeStep: 0,
+    });
+
+    hitActiveZone(engine, "perfect");
+
+    expect(engine.getState().skillCheck).toMatchObject({
+      active: true,
+      completedHits: 1,
+      activeStep: 1,
+      hitResults: ["perfect"],
+      instruction: "KETTE 2/2",
+    });
+    expect(engine.getState().skillCheck.progress).toBe(0);
+  });
+
+  it("scores chain-lock with the weakest successful hit", () => {
+    const engine = new GameEngine(sequenceRandom([0.95, 0.2, 0.8]));
+    startPlaying(engine, 3);
+    waitForSkillCheck(engine);
+    const before = engine.getState().anchorDepth;
+
+    hitActiveZone(engine, "perfect");
+    hitActiveZone(engine, "good");
+
+    expect(engine.getState().skillCheck).toMatchObject({
+      active: false,
+      result: "good",
+      completedHits: 2,
+      hitResults: ["perfect", "good"],
+    });
+    expect(engine.getState().anchorDepth).toBeGreaterThan(before);
+  });
+
+  it("misses chain-lock immediately when a later step is missed", () => {
+    const engine = new GameEngine(sequenceRandom([0.95, 0.2, 0.8]));
+    startPlaying(engine, 3);
+    waitForSkillCheck(engine);
+    hitActiveZone(engine, "perfect");
+    const beforeMiss = engine.getState().anchorDepth;
+
+    engine.hitSkillCheck();
+
+    expect(engine.getState().skillCheck.result).toBe("miss");
+    expect(engine.getState().anchorDepth).toBeLessThan(beforeMiss);
+  });
+
+  it("normalizes legacy saved skillchecks without variant fields", () => {
+    const engine = new GameEngine(() => 0);
+    const legacy = engine.getState() as unknown as GameState;
+    legacy.skillCheck = {
+      active: true,
+      progress: 0.25,
+      targetCenter: 0.4,
+      goodWidth: 0.2,
+      greatWidth: 0.08,
+      perfectWidth: 0.02,
+      result: null,
+    } as unknown as GameState["skillCheck"];
+
+    engine.hydrate(legacy);
+    const skillCheck = engine.getState().skillCheck;
+    expect(skillCheck.variantId).toBe("steady");
+    expect(skillCheck.zones).toEqual([
+      { center: 0.4, width: 0.2, result: "good" },
+      { center: 0.4, width: 0.08, result: "great" },
+      { center: 0.4, width: 0.02, result: "perfect" },
+    ]);
+  });
+
+  it("pulls the anchor upward when a skillcheck is missed", () => {
+    const engine = new GameEngine(() => 0);
+    startPlaying(engine);
+    waitForSkillCheck(engine);
     const before = engine.getState().anchorDepth;
     engine.hitSkillCheck();
     expect(engine.getState().skillCheck.result).toBe("miss");
-    expect(engine.getState().anchorDepth).toBe(before);
+    expect(engine.getState().anchorDepth).toBeCloseTo(
+      before - BALANCE.skillMissPull * skillStrengthForLevel(1),
+    );
   });
 
-  it("does not pull the anchor upward when a skillcheck times out", () => {
+  it("pulls the anchor upward when a skillcheck times out", () => {
     const engine = new GameEngine(() => 0);
     startPlaying(engine);
-    while (!engine.getState().skillCheck.active) {
-      engine.tick(100, Date.now(), true);
-    }
+    waitForSkillCheck(engine);
     const before = engine.getState().anchorDepth;
     while (engine.getState().skillCheck.active) {
       engine.tick(100, Date.now(), true);
     }
     expect(engine.getState().skillCheck.result).toBe("miss");
-    expect(engine.getState().anchorDepth).toBeGreaterThanOrEqual(before);
+    expect(engine.getState().anchorDepth).toBeLessThan(before);
   });
 
   it("lets a perfect skillcheck recover after the largest gift wave", () => {
@@ -545,14 +782,8 @@ describe("GameEngine", () => {
     startPlaying(engine, 6);
     engine.onGiftSubs(1000);
     const afterGiftWave = engine.getState().anchorDepth;
-    while (!engine.getState().skillCheck.active) {
-      engine.tick(100, Date.now(), true);
-    }
-    const target = engine.getState().skillCheck.targetCenter;
-    while (engine.getState().skillCheck.progress < target) {
-      engine.tick(20, Date.now(), true);
-    }
-    engine.hitSkillCheck();
+    waitForSkillCheck(engine);
+    hitZone(engine, "perfect");
     expect(engine.getState().anchorDepth).toBeGreaterThan(afterGiftWave);
   });
 });
